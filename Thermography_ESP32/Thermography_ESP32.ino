@@ -122,7 +122,7 @@ bool flagTakeRefFrame = false;
 
 //Rolling average
 int rollingFrame[768];
-int rollingFrameMinus[3][768];
+int rollingFrameMinus[4][768];
 int rollingCounter = 0;
 bool rollingAverage = false;
 
@@ -301,7 +301,7 @@ void getVddAndTa(float *vdd, float *Ta, paramsMLX90640 *mlx90640) {
 // ===============================
 
 void rollingCounterIncrease(int *counter) {
-  if (*counter < 2) {
+  if (*counter < 3) {
     (*counter)++;
   }
   else {
@@ -834,11 +834,11 @@ void rawReading() {
         if (rollingAverage) {
           if (flagCompareToRefFrame) {
             //getColour((int)(((rollingFrame[32 * i + x]) + 0) * 1)); //good
-            getColour((int) map(rollingFrame[32 * i + x] /3, minValue, maxValue, 0, 255));
+            getColour((int) map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
           }
           else {
             //getColour((int)(((rollingFrame[32 * i + x]) + 90) * 1.5)); //good
-            getColour((int) map(rollingFrame[32 * i + x] /3, minValue, maxValue, 0, 255));
+            getColour((int) map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
           }
         }
         else {
@@ -861,10 +861,10 @@ void rawReading() {
       }
       if (rollingAverage) {
         if (flagCompareToRefFrame) {
-          rawDataSum += (int)map(rollingFrame[32 * i + x]/3, minValue, maxValue, 0, 255);
+          rawDataSum += (int)map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255);
         }
         else {
-          rawDataSum += (int)map(rollingFrame[32 * i + x]/3, minValue, maxValue, 0, 255); //good
+          rawDataSum += (int)map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255); //good
         }
       }
       else {
