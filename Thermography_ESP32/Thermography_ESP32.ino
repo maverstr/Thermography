@@ -8,7 +8,7 @@
 // Change to 40Mhz if it happens
 #include <driver/dac.h> //Used to drive the DAC and analog out of the ESP32
 
-//#define _DEBUG_ //conditional compilation for debug
+#define _DEBUG_ //conditional compilation for debug
 //#define _SERIAL_OUTPUT_
 
 
@@ -205,7 +205,7 @@ void setup()
   //MLX90640_SetRefreshRate(MLX90640_address, 0x05); //Set rate to 8Hz effective - Works at 800kHz
   //MLX90640_SetRefreshRate(MLX90640_address, 0x06); //Set rate to 16Hz effective - Works at 800kHz
   MLX90640_SetRefreshRate(MLX90640_address, 0x07); //Set rate to 32Hz effective - fails ->OK except temperature reading -> 0x04
-  Wire.setClock(3400000); //set i2c speed to 1Mhz, see mlx9060 max speed
+  Wire.setClock(1000000); //set i2c speed to 1Mhz, see mlx9060 max speed
 
   tft.begin();
   tft.setRotation(1);
@@ -424,16 +424,15 @@ void setRollingAverage() {
 }
 
 void setCompareToRefFrame() {
-  /*
-    if (millis() > pressedTimeStamp + debounceDelay) {
+  if (millis() > pressedTimeStamp + debounceDelay) {
     flagCompareToRefFrame = !flagCompareToRefFrame;
     frameCounter = 0;
     pressedTimeStamp = millis();
     startingTime = pressedTimeStamp;
     tft.fillRect(0, 35, 224, 203, tft.color565(0, 0, 0)); //blackens the screen to reset it
-    }
-  */
-  setCalibration();
+    delay(500);
+    setCalibration();
+  }
 }
 
 void setTempVisualisation() {
@@ -452,29 +451,31 @@ void setTempVisualisation() {
 
 void setRefFrame() {
 
-  /* //1 frame reference
-    if (millis() > pressedTimeStamp + debounceDelay) {
-    MLX90640_I2CRead(MLX90640_address,  0x0400,  768, refFrame);
-    }*/
-
+  //1 frame reference
   if (millis() > pressedTimeStamp + debounceDelay) {
-    //100 frame reference
-    refFrame[768] = {0};
-    for (int w = 0; w < 100; w++) {
-      MLX90640_I2CRead(MLX90640_address,  0x0400,  768, currentRefFrame);
-      for (int w = 0; w < 768; w++) {
-        refFrame[w] = refFrame[w] + currentRefFrame[w];
-      }
-    }
-    for (int w = 0; w < 768; w++) {
-      if (refFrame[w] > 32767) {
-        refFrame[w] = (refFrame[w] - 65536) / 100;
-      }
-      else {
-        refFrame[w] = refFrame[w] / 100;
-      }
-    }
+    MLX90640_I2CRead(MLX90640_address,  0x0400,  768, refFrame);
   }
+  
+   /*
+    if (millis() > pressedTimeStamp + debounceDelay) {
+      //100 frame reference
+      refFrame[768] = {0};
+      for (int w = 0; w < 100; w++) {
+        MLX90640_I2CRead(MLX90640_address,  0x0400,  768, currentRefFrame);
+        for (int w = 0; w < 768; w++) {
+          refFrame[w] = refFrame[w] + currentRefFrame[w];
+        }
+      }
+      for (int w = 0; w < 768; w++) {
+        if (refFrame[w] > 32767) {
+          //refFrame[w] = (refFrame[w] - 65536) / 100;
+          refFrame[w] = refFrame[w] / 100;
+        }
+        else {
+          refFrame[w] = refFrame[w] / 100;
+        }
+      }
+    }*/
 }
 
 void setCalibration() {
