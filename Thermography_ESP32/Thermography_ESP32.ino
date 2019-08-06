@@ -8,6 +8,9 @@
 // Change to 40Mhz if it happens
 #include <driver/dac.h> //Used to drive the DAC and analog out of the ESP32
 
+//#define _DEBUG_ //conditional compilation for debug
+//#define _SERIAL_OUTPUT_
+
 
 //Functions declaration
 void IRAM_ATTR setRefFrameActivateFlag(); //loaded in quick ram
@@ -202,15 +205,15 @@ void setup()
   //MLX90640_SetRefreshRate(MLX90640_address, 0x05); //Set rate to 8Hz effective - Works at 800kHz
   //MLX90640_SetRefreshRate(MLX90640_address, 0x06); //Set rate to 16Hz effective - Works at 800kHz
   MLX90640_SetRefreshRate(MLX90640_address, 0x07); //Set rate to 32Hz effective - fails ->OK except temperature reading -> 0x04
-  Wire.setClock(1000000); //set i2c speed to 1Mhz, see mlx9060 max speed
+  Wire.setClock(3400000); //set i2c speed to 1Mhz, see mlx9060 max speed
 
   tft.begin();
   tft.setRotation(1);
   drawUI();
   setRefFrame(); //Gets a starting init frame
   getVddAndTa(&vdd, &Ta, &mlx90640); //required too! why ??
-  for (int i = 0; i < 768; i++){
-  correctionValues[i]= (mlx90640.offset[i] * (1 + mlx90640.kta[i] * (Ta - 25)) * (1 + mlx90640.kv[i] * (vdd - 3.3)));
+  for (int i = 0; i < 768; i++) {
+    correctionValues[i] = (mlx90640.offset[i] * (1 + mlx90640.kta[i] * (Ta - 25)) * (1 + mlx90640.kv[i] * (vdd - 3.3)));
   }
   setCalibration();
   startingTime = millis();
@@ -422,13 +425,13 @@ void setRollingAverage() {
 
 void setCompareToRefFrame() {
   /*
-  if (millis() > pressedTimeStamp + debounceDelay) {
+    if (millis() > pressedTimeStamp + debounceDelay) {
     flagCompareToRefFrame = !flagCompareToRefFrame;
     frameCounter = 0;
     pressedTimeStamp = millis();
     startingTime = pressedTimeStamp;
     tft.fillRect(0, 35, 224, 203, tft.color565(0, 0, 0)); //blackens the screen to reset it
-  }
+    }
   */
   setCalibration();
 }
@@ -496,17 +499,17 @@ void setCalibration() {
           value = value;
         }
         //Modification to correct the gain and stuff. values set at setup instead of getting vdd and Ta every frame cause it requires to get FrameData -> way too slow.
-        value = value - mlx90640.offset[w] * (1 + mlx90640.kta[w] * (Ta - 25)) * (1 + mlx90640.kv[w] * (vdd - 3.3));
-        if (value > maxValue && (value < 1.3*maxValue ||value < maxValue +20)) { //workaround to avoid > 32000 values... Why it happens with gain correction ? + avoid abberant value 
+        value = value - (correctionValues[w]);
+        if (value > maxValue && (value < 1.3 * maxValue || value < maxValue + 20)) { //workaround to avoid > 32000 values... Why it happens with gain correction ? + avoid abberant value
           maxValue = value;
         }
-        else if (value < minValue && (value > 1.3*minValue ||value > minValue -20)) {
+        else if (value < minValue && (value > 1.3 * minValue || value > minValue - 20)) {
           minValue = value;
         }
       }
     }
-    maxValue = maxValue -0.0* maxValue; 
-    minValue = minValue -0.0* minValue; //adjusting values
+    maxValue = maxValue - 0.25 * maxValue;
+    minValue = minValue - 0.25 * minValue; //adjusting values
   }
 }
 
@@ -825,7 +828,7 @@ void rawReading() {
         imageOutput = imageOutput - 65536;
       }
       //Modification to correct the gain and stuff. values set at setup instead of getting vdd and Ta every frame cause it requires to get FrameData -> way too slow.
-      imageOutput = imageOutput - (correctionValues[32*i+x]);
+      imageOutput = imageOutput - (correctionValues[32 * i + x]);
       if (rollingAverage) {
         rollingFrameMinus[rollingCounter][32 * i + x] = imageOutput;
         rollingFrame[32 * i + x] += imageOutput;
@@ -875,31 +878,35 @@ void rawReading() {
           rawDataSum += (int)map(imageOutput, minValue, maxValue, 0, 255); //good
         }
       }
-      //Serial.print((int)map(imageOutput, minValue, maxValue, 0, 255));
+#ifdef _SERIAL_OUTPUT_
       Serial.print(imageOutput);
-      averageCounter++;
       Serial.print(" ");
+#endif
+      averageCounter++;
     }
+#ifdef _SERIAL_OUTPUT_
+    delay(1);
     Serial.println();
+#endif
   }// do loop thru all 24 lines!
-
+#ifdef _DEBUG_
   currentTime = millis();
   timeDelta = (currentTime - startingTime) / 1000;
   rate = frameCounter / (double)timeDelta;
-  /*
-    Serial.print("------------------------frame counter = ");
-    Serial.print(frameCounter);
-    Serial.print("rate = ");
-    Serial.print(rate);
-    Serial.println("----------------------------------");
-    Serial.print("   Average = ");
-    Serial.print(rawDataAverage);
-    Serial.println("");
-  */Serial.println("@");
+  Serial.print("------------------------frame counter = ");
+  Serial.print(frameCounter);
+  Serial.print("rate = ");
+  Serial.print(rate);
+  Serial.println("----------------------------------");
   Serial.print("max values : "); Serial.print(maxValue); Serial.print(" "); Serial.println(minValue);
   frameCounter++;
+#endif
+#ifdef _SERIAL_OUTPUT_
+  Serial.println("@");
+#endif
 
   rawDataAverage = (abs((rawDataSum / averageCounter)) < 255) ? abs(rawDataSum / averageCounter) : 255 ;
+  //rawDataAverage = abs(rawDataSum / averageCounter);
   dac_output_voltage(DAC_CHANNEL_1, rawDataAverage);
   rawDataAverage = 0;
   rawDataSum = 0;
