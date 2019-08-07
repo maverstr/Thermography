@@ -163,6 +163,9 @@ void setup()
   pinMode(refFrameActivatePin, INPUT_PULLUP);
   pinMode(refTakePin, INPUT_PULLUP);
   pinMode(drawingModePin, INPUT);
+#ifdef _DEBUG_
+  pinMode(4, OUTPUT);
+#endif
   attachInterrupt(digitalPinToInterrupt(refFrameActivatePin), setRefFrameActivateFlag, FALLING);
   attachInterrupt(digitalPinToInterrupt(RollingAvPin), setRollingAvFlag, FALLING);
   attachInterrupt(digitalPinToInterrupt(refTakePin), setRefFrameTakeFlag, FALLING);
@@ -217,6 +220,12 @@ void setup()
   }
   setCalibration();
   startingTime = millis();
+/*
+  uint32_t reg_value = *((uint32_t*) 0x3FF53004 );
+  Serial.print(" reg value = ");
+  Serial.println(reg_value);
+  reg_value &= ~0x02;
+  *((uint32_t*) 0x3FF53004 )  = reg_value;*/
 }
 
 
@@ -455,26 +464,26 @@ void setRefFrame() {
   if (millis() > pressedTimeStamp + debounceDelay) {
     MLX90640_I2CRead(MLX90640_address,  0x0400,  768, refFrame);
   }
-  
-   /*
+
+  /*
     if (millis() > pressedTimeStamp + debounceDelay) {
-      //100 frame reference
-      refFrame[768] = {0};
-      for (int w = 0; w < 100; w++) {
-        MLX90640_I2CRead(MLX90640_address,  0x0400,  768, currentRefFrame);
-        for (int w = 0; w < 768; w++) {
-          refFrame[w] = refFrame[w] + currentRefFrame[w];
-        }
-      }
-      for (int w = 0; w < 768; w++) {
-        if (refFrame[w] > 32767) {
-          //refFrame[w] = (refFrame[w] - 65536) / 100;
-          refFrame[w] = refFrame[w] / 100;
-        }
-        else {
-          refFrame[w] = refFrame[w] / 100;
-        }
-      }
+     //100 frame reference
+     refFrame[768] = {0};
+     for (int w = 0; w < 100; w++) {
+       MLX90640_I2CRead(MLX90640_address,  0x0400,  768, currentRefFrame);
+       for (int w = 0; w < 768; w++) {
+         refFrame[w] = refFrame[w] + currentRefFrame[w];
+       }
+     }
+     for (int w = 0; w < 768; w++) {
+       if (refFrame[w] > 32767) {
+         //refFrame[w] = (refFrame[w] - 65536) / 100;
+         refFrame[w] = refFrame[w] / 100;
+       }
+       else {
+         refFrame[w] = refFrame[w] / 100;
+       }
+     }
     }*/
 }
 
@@ -814,7 +823,17 @@ void temperatureDrawing(float T_max, float T_min, float T_center) {
 //RAW READING OF PIXEL VALUES
 
 void rawReading() {
-
+#ifdef _DEBUG_
+  digitalWrite(4, HIGH);
+  /*
+  uint32_t reg_value = *((uint32_t*) 0x3FF53004 );
+  Serial.print(" reg value = ");
+  Serial.println(reg_value);
+  reg_value &= ~0x02;
+*((uint32_t*) 0x3FF53004 )  = reg_value;
+  Serial.print(" reg value = ");
+  Serial.println(reg_value);*/
+#endif
   for (int i = (0 + croppingIntegerYM); i < (24 - croppingIntegerYP); i = i + resolutionInteger) {
     MLX90640_I2CRead(MLX90640_address,  0x0400 + 32 * i,  32, mydata); //read 32 places in memory
     for (int x = (0 + croppingIntegerXM) ; x < (32 - croppingIntegerXP); x = x + resolutionInteger) {
@@ -936,7 +955,9 @@ void rawReading() {
     tft.drawLine(endPx, initPy, endPx, endPy, tft.color565(255, 255, 0));
     tft.drawLine(initPx, endPy, endPx, endPy, tft.color565(255, 255, 0));
   }
-
+#ifdef _DEBUG_
+  digitalWrite(4, LOW);
+#endif
 }
 
 void serialDoCommand() {
