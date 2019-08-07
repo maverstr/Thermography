@@ -8,6 +8,8 @@
 // Change to 40Mhz if it happens
 #include <driver/dac.h> //Used to drive the DAC and analog out of the ESP32
 
+#include "RunningStat.cpp" //computes the running std with Welford method (1962)
+
 #define _DEBUG_ //conditional compilation for debug
 //#define _SERIAL_OUTPUT_
 
@@ -135,7 +137,7 @@ bool flagCompareToRefFrame = false;
 bool flagRollingAverage = false;
 bool flagSetCompareToRefFrame = false;
 
-
+//touchscreen
 #define BOXSIZE 50
 bool flagChangeCroppingMode = false;
 bool flagInitPoint = false;
@@ -144,6 +146,15 @@ int initPx = -1; //default is -1 and signals that no point has been selected
 int initPy = -1;
 int endPx = -1;
 int endPy = -1;
+
+//Standard Deviation
+//float stdSums[3][768]; //array of the continously updated sums.
+// s0, s1, s2. s0 = N, s1 = sum(x for x in sample), s2 = sum(x*x for x in sample)
+//std = sqrt((s0*s2 -s1*s1)/(s0*(s0-1)))
+//
+RunningStat rs;
+RunningStat stdValues[768];
+
 
 // ***************************************
 // **************** SETUP ****************
@@ -219,13 +230,14 @@ void setup()
   setRefFrame(); //Gets a starting init frame
   setCalibration();
   startingTime = millis();
-
-  /* uint32_t reg_value = *((uint32_t*) 0x3FF53004 );
+/*
+  uint32_t reg_value = *((uint32_t*) 0x3FF53004 );
     Serial.print(" reg value = ");
     Serial.println(reg_value);
     reg_value &= ~0x02;
-    ((uint32_t*) 0x3FF53004 )  = reg_value;
-    pinMode(22, 0x02);*/
+    *((uint32_t*) 0x3FF53004 )  = reg_value;
+    pinMode(22, 0x03);
+    */
 }
 
 
@@ -821,12 +833,12 @@ void temperatureDrawing(float T_max, float T_min, float T_center) {
 void rawReading() {
 #ifdef _DEBUG_
   digitalWrite(4, HIGH);
-  /*
+  
     uint32_t reg_value = *((uint32_t*) 0x3FF53004 );
     Serial.print(" reg value = ");
-    Serial.println(reg_value);
+    Serial.println(reg_value);/*
     reg_value &= ~0x02;
-      ((uint32_t*) 0x3FF53004 )  = reg_value;
+    *((uint32_t*) 0x3FF53004 )  = reg_value;
     Serial.print(" reg value = ");
     Serial.println(reg_value);*/
 #endif
@@ -851,21 +863,10 @@ void rawReading() {
       }
       if (rawVisualisation) {
         if (rollingAverage) {
-          if (flagCompareToRefFrame) {
             getColour((int) map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
-          }
-          else {
-            getColour((int) map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
-          }
         }
         else {
-          if (flagCompareToRefFrame) {
             getColour(map(imageOutput, minValue, maxValue, 0, 255));
-
-          }
-          else {
-            getColour(map(imageOutput, minValue, maxValue, 0, 255));
-          }
         }
         if (flagDrawingMode) {
           tft.fillRect(x * 10, i * 10, 10, 10, tft.color565(R_colour, G_colour, B_colour));
@@ -875,20 +876,10 @@ void rawReading() {
         }
       }
       if (rollingAverage) {
-        if (flagCompareToRefFrame) {
           rawDataSum += (int)map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255);
-        }
-        else {
-          rawDataSum += (int)map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255); //good
-        }
       }
       else {
-        if (flagCompareToRefFrame) {
           rawDataSum += (int)map(imageOutput, minValue, maxValue, 0, 255);
-        }
-        else {
-          rawDataSum += (int)map(imageOutput, minValue, maxValue, 0, 255); //good
-        }
       }
 #ifdef _SERIAL_OUTPUT_
       Serial.print(imageOutput);
