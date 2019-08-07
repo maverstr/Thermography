@@ -96,7 +96,6 @@ float correctionValues[768];
 
 float maxValue = 150;
 float minValue = -50;
-int calibrationCounter = 0;
 
 //Cropping and drawing
 int croppingInteger = 0; //The one used with buttons
@@ -220,12 +219,12 @@ void setup()
   }
   setCalibration();
   startingTime = millis();
-/*
-  uint32_t reg_value = *((uint32_t*) 0x3FF53004 );
-  Serial.print(" reg value = ");
-  Serial.println(reg_value);
-  reg_value &= ~0x02;
-  *((uint32_t*) 0x3FF53004 )  = reg_value;*/
+  /*
+    uint32_t reg_value = *((uint32_t*) 0x3FF53004 );
+    Serial.print(" reg value = ");
+    Serial.println(reg_value);
+    reg_value &= ~0x02;
+     *((uint32_t*) 0x3FF53004 )  = reg_value;*/
 }
 
 
@@ -460,40 +459,36 @@ void setTempVisualisation() {
 
 void setRefFrame() {
 
-  //1 frame reference
-  if (millis() > pressedTimeStamp + debounceDelay) {
-    MLX90640_I2CRead(MLX90640_address,  0x0400,  768, refFrame);
-  }
-
-  /*
+  /*//1 frame reference
     if (millis() > pressedTimeStamp + debounceDelay) {
-     //100 frame reference
-     refFrame[768] = {0};
-     for (int w = 0; w < 100; w++) {
-       MLX90640_I2CRead(MLX90640_address,  0x0400,  768, currentRefFrame);
-       for (int w = 0; w < 768; w++) {
-         refFrame[w] = refFrame[w] + currentRefFrame[w];
-       }
-     }
-     for (int w = 0; w < 768; w++) {
-       if (refFrame[w] > 32767) {
-         //refFrame[w] = (refFrame[w] - 65536) / 100;
-         refFrame[w] = refFrame[w] / 100;
-       }
-       else {
-         refFrame[w] = refFrame[w] / 100;
-       }
-     }
+    MLX90640_I2CRead(MLX90640_address,  0x0400,  768, refFrame);
     }*/
+
+  if (millis() > pressedTimeStamp + debounceDelay) {
+    //100 frame reference
+    uint32_t totalRefFrame[768];
+    for (int w = 0; w < 768; w++) {
+      totalRefFrame[w] = 0;
+    }
+    for (int w = 0; w < 16; w++) {
+      MLX90640_I2CRead(MLX90640_address,  0x0400,  768, currentRefFrame);
+      for (int x = 0; x < 768; x++) {
+        totalRefFrame[x] = totalRefFrame[x] + currentRefFrame[x];
+      }
+    }
+    for (int w = 0; w < 768; w++) {
+      refFrame[w] = totalRefFrame[w] >> 4;
+    }
+  }
 }
 
 void setCalibration() {
   if (millis() > pressedTimeStamp + debounceDelay) {
-    //100 frame calibration
+    //128 frame calibration
     float value;
     maxValue = 10; //resets basic values
     minValue = 0;
-    for (int w = 0; w < 100; w++) {
+    for (int w = 0; w < 64; w++) {
       MLX90640_I2CRead(MLX90640_address,  0x0400,  768, currentRefFrame);
       for (int w = 0; w < 768; w++) {
         if (flagCompareToRefFrame) {
@@ -826,13 +821,13 @@ void rawReading() {
 #ifdef _DEBUG_
   digitalWrite(4, HIGH);
   /*
-  uint32_t reg_value = *((uint32_t*) 0x3FF53004 );
-  Serial.print(" reg value = ");
-  Serial.println(reg_value);
-  reg_value &= ~0x02;
-*((uint32_t*) 0x3FF53004 )  = reg_value;
-  Serial.print(" reg value = ");
-  Serial.println(reg_value);*/
+    uint32_t reg_value = *((uint32_t*) 0x3FF53004 );
+    Serial.print(" reg value = ");
+    Serial.println(reg_value);
+    reg_value &= ~0x02;
+    *((uint32_t*) 0x3FF53004 )  = reg_value;
+    Serial.print(" reg value = ");
+    Serial.println(reg_value);*/
 #endif
   for (int i = (0 + croppingIntegerYM); i < (24 - croppingIntegerYP); i = i + resolutionInteger) {
     MLX90640_I2CRead(MLX90640_address,  0x0400 + 32 * i,  32, mydata); //read 32 places in memory
@@ -931,12 +926,6 @@ void rawReading() {
   rawDataAverage = 0;
   rawDataSum = 0;
   averageCounter = 0;
-  calibrationCounter++;
-
-  if (calibrationCounter > 1000) {
-    setCalibration();
-    calibrationCounter = 0;
-  }
 
   if (rollingAverage) {
     //Substraction from the rolling frame
