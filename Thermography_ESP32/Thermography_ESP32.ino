@@ -212,19 +212,19 @@ void setup()
   tft.begin();
   tft.setRotation(1);
   drawUI();
-  setRefFrame(); //Gets a starting init frame
   getVddAndTa(&vdd, &Ta, &mlx90640); //required too! why ??
   for (int i = 0; i < 768; i++) {
     correctionValues[i] = (mlx90640.offset[i] * (1 + mlx90640.kta[i] * (Ta - 25)) * (1 + mlx90640.kv[i] * (vdd - 3.3)));
   }
+  setRefFrame(); //Gets a starting init frame
   setCalibration();
   startingTime = millis();
-  /*
-    uint32_t reg_value = *((uint32_t*) 0x3FF53004 );
+
+  /* uint32_t reg_value = *((uint32_t*) 0x3FF53004 );
     Serial.print(" reg value = ");
     Serial.println(reg_value);
     reg_value &= ~0x02;
-     ((uint32_t*) 0x3FF53004 )  = reg_value;
+    ((uint32_t*) 0x3FF53004 )  = reg_value;
     pinMode(22, 0x02);*/
 }
 
@@ -514,8 +514,8 @@ void setCalibration() {
         }
       }
     }
-    maxValue = maxValue - 0.25 * maxValue;
-    minValue = minValue - 0.25 * minValue; //adjusting values
+    maxValue = maxValue - 0.1 * (maxValue - minValue); //adjusting values
+    minValue = minValue + 0.1 * (maxValue - minValue);
   }
 }
 
@@ -852,22 +852,18 @@ void rawReading() {
       if (rawVisualisation) {
         if (rollingAverage) {
           if (flagCompareToRefFrame) {
-            //getColour((int)(((rollingFrame[32 * i + x]) + 0) * 1)); //good
             getColour((int) map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
           }
           else {
-            //getColour((int)(((rollingFrame[32 * i + x]) + 90) * 1.5)); //good
             getColour((int) map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
           }
         }
         else {
           if (flagCompareToRefFrame) {
-            //getColour((imageOutput + 10) * 1); //good
             getColour(map(imageOutput, minValue, maxValue, 0, 255));
 
           }
           else {
-            //getColour(((imageOutput) + 50) * 2); //good
             getColour(map(imageOutput, minValue, maxValue, 0, 255));
           }
         }
