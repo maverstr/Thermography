@@ -148,11 +148,6 @@ int endPx = -1;
 int endPy = -1;
 
 //Standard Deviation
-//float stdSums[3][768]; //array of the continously updated sums.
-// s0, s1, s2. s0 = N, s1 = sum(x for x in sample), s2 = sum(x*x for x in sample)
-//std = sqrt((s0*s2 -s1*s1)/(s0*(s0-1)))
-//
-RunningStat rs;
 RunningStat stdValues[768];
 
 
@@ -867,7 +862,7 @@ void rawReading() {
         }
         else {
           getColour(map(imageOutput, minValue, maxValue, 0, 255));
-          getColour(stdValues[32*i+x].StandardDeviation());
+          getColour(map(stdValues[32*i+x].StandardDeviation(), 0, maxValue-minValue, 0 , 255));
         }
         if (flagDrawingMode) {
           tft.fillRect(x * 10, i * 10, 10, 10, tft.color565(R_colour, G_colour, B_colour)); //draws on the fullscreen
