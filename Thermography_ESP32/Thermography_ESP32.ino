@@ -592,6 +592,11 @@ void getColour(int j) {
     G_colour = j;
     B_colour = j;
   }
+  else if (j == -250) { //specific code for green (std dev)
+    R_colour = 0;
+    G_colour = 250;
+    B_colour = 0;
+  }
   else if (j < 0) {
     R_colour = 252;
     G_colour = 3;
@@ -859,10 +864,16 @@ void rawReading() {
       if (rawVisualisation) {
         if (rollingAverage) {
           getColour((int) map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
+          if (stdValues[32 * i + x].StandardDeviation() > 25) {
+            getColour(-250);
+          }
         }
         else {
           getColour(map(imageOutput, minValue, maxValue, 0, 255));
-          getColour(map(stdValues[32*i+x].StandardDeviation(), 0, maxValue-minValue, 0 , 255));
+          if (stdValues[32 * i + x].StandardDeviation() > 25) {
+            getColour(-250);
+          }
+          //getColour(map(stdValues[32*i+x].StandardDeviation(), 0, 150, 0 , 255)); //std map
         }
         if (flagDrawingMode) {
           tft.fillRect(x * 10, i * 10, 10, 10, tft.color565(R_colour, G_colour, B_colour)); //draws on the fullscreen
@@ -872,19 +883,26 @@ void rawReading() {
         }
       }
       if (rollingAverage) {
-        rawDataSum += (int)map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255);
+        if (stdValues[32 * i + x].StandardDeviation() > 25) {
+          rawDataSum += (int)map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255);
+          averageCounter++;
+        }
         stdValues[32 * i + x].Push(map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
       }
       else {
-        rawDataSum += (int)map(imageOutput, minValue, maxValue, 0, 255);
+        if (stdValues[32 * i + x].StandardDeviation() > 25) {
+          rawDataSum += (int)map(imageOutput, minValue, maxValue, 0, 255);
+          averageCounter++;
+        }
         stdValues[32 * i + x].Push(map(imageOutput, minValue, maxValue, 0, 255));
       }
+      Serial.print(stdValues[32 * i + x].StandardDeviation()); Serial.print(" ");
 #ifdef _SERIAL_OUTPUT_
       Serial.print(imageOutput);
       Serial.print(" ");
 #endif
-      averageCounter++;
     }
+    Serial.println();
 #ifdef _SERIAL_OUTPUT_
     delay(1);
     Serial.println();
@@ -900,7 +918,6 @@ void rawReading() {
   Serial.print(rate);
   Serial.println("----------------------------------");
   Serial.print("max values : "); Serial.print(maxValue); Serial.print(" "); Serial.println(minValue);
-  Serial.print("std : "); Serial.println(stdValues[420].StandardDeviation());
   frameCounter++;
 #endif
 #ifdef _SERIAL_OUTPUT_
@@ -934,6 +951,13 @@ void rawReading() {
 #ifdef _DEBUG_
   digitalWrite(4, LOW);
 #endif
+
+  if ((int)frameCounter % 250 == 0) {
+    for (int i = 0; i < 768; i++) {
+      stdValues[i].Clear();
+    }
+  }
+
 }
 
 void serialDoCommand() {
