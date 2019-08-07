@@ -230,14 +230,14 @@ void setup()
   setRefFrame(); //Gets a starting init frame
   setCalibration();
   startingTime = millis();
-/*
-  uint32_t reg_value = *((uint32_t*) 0x3FF53004 );
-    Serial.print(" reg value = ");
-    Serial.println(reg_value);
-    reg_value &= ~0x02;
-    *((uint32_t*) 0x3FF53004 )  = reg_value;
-    pinMode(22, 0x03);
-    */
+  /*
+    uint32_t reg_value = *((uint32_t*) 0x3FF53004 );
+      Serial.print(" reg value = ");
+      Serial.println(reg_value);
+      reg_value &= ~0x02;
+       ((uint32_t*) 0x3FF53004 )  = reg_value;
+      pinMode(22, 0x03);
+  */
 }
 
 
@@ -833,12 +833,12 @@ void temperatureDrawing(float T_max, float T_min, float T_center) {
 void rawReading() {
 #ifdef _DEBUG_
   digitalWrite(4, HIGH);
-  
-    uint32_t reg_value = *((uint32_t*) 0x3FF53004 );
-    Serial.print(" reg value = ");
-    Serial.println(reg_value);/*
+
+  uint32_t reg_value = *((uint32_t*) 0x3FF53004 );
+  Serial.print(" reg value = ");
+  Serial.println(reg_value);/*
     reg_value &= ~0x02;
-    *((uint32_t*) 0x3FF53004 )  = reg_value;
+     ((uint32_t*) 0x3FF53004 )  = reg_value;
     Serial.print(" reg value = ");
     Serial.println(reg_value);*/
 #endif
@@ -863,23 +863,26 @@ void rawReading() {
       }
       if (rawVisualisation) {
         if (rollingAverage) {
-            getColour((int) map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
+          getColour((int) map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
         }
         else {
-            getColour(map(imageOutput, minValue, maxValue, 0, 255));
+          getColour(map(imageOutput, minValue, maxValue, 0, 255));
+          getColour(stdValues[32*i+x].StandardDeviation());
         }
         if (flagDrawingMode) {
-          tft.fillRect(x * 10, i * 10, 10, 10, tft.color565(R_colour, G_colour, B_colour));
+          tft.fillRect(x * 10, i * 10, 10, 10, tft.color565(R_colour, G_colour, B_colour)); //draws on the fullscreen
         }
         else {
-          tft.fillRect(217 - x * 7, 35 + i * 7, 7, 7, tft.color565(R_colour, G_colour, B_colour));
+          tft.fillRect(217 - x * 7, 35 + i * 7, 7, 7, tft.color565(R_colour, G_colour, B_colour)); //draws on a sub-part of the screen
         }
       }
       if (rollingAverage) {
-          rawDataSum += (int)map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255);
+        rawDataSum += (int)map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255);
+        stdValues[32 * i + x].Push(map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
       }
       else {
-          rawDataSum += (int)map(imageOutput, minValue, maxValue, 0, 255);
+        rawDataSum += (int)map(imageOutput, minValue, maxValue, 0, 255);
+        stdValues[32 * i + x].Push(map(imageOutput, minValue, maxValue, 0, 255));
       }
 #ifdef _SERIAL_OUTPUT_
       Serial.print(imageOutput);
@@ -902,6 +905,7 @@ void rawReading() {
   Serial.print(rate);
   Serial.println("----------------------------------");
   Serial.print("max values : "); Serial.print(maxValue); Serial.print(" "); Serial.println(minValue);
+  Serial.print("std : "); Serial.println(stdValues[420].StandardDeviation());
   frameCounter++;
 #endif
 #ifdef _SERIAL_OUTPUT_
