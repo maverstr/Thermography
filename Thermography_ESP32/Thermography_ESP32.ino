@@ -224,7 +224,8 @@ void setup()
     Serial.print(" reg value = ");
     Serial.println(reg_value);
     reg_value &= ~0x02;
-     *((uint32_t*) 0x3FF53004 )  = reg_value;*/
+     ((uint32_t*) 0x3FF53004 )  = reg_value;
+    pinMode(22, 0x02);*/
 }
 
 
@@ -465,7 +466,7 @@ void setRefFrame() {
     }*/
 
   if (millis() > pressedTimeStamp + debounceDelay) {
-    //100 frame reference
+    //16 frames reference
     uint32_t totalRefFrame[768];
     for (int w = 0; w < 768; w++) {
       totalRefFrame[w] = 0;
@@ -484,18 +485,18 @@ void setRefFrame() {
 
 void setCalibration() {
   if (millis() > pressedTimeStamp + debounceDelay) {
-    //128 frame calibration
+    //64 frame calibration
     float value;
     maxValue = 10; //resets basic values
     minValue = 0;
     for (int w = 0; w < 64; w++) {
       MLX90640_I2CRead(MLX90640_address,  0x0400,  768, currentRefFrame);
-      for (int w = 0; w < 768; w++) {
+      for (int x = 0; x < 768; x++) {
         if (flagCompareToRefFrame) {
-          value = currentRefFrame[w] - refFrame[w];
+          value = currentRefFrame[x] - refFrame[x];
         }
         else {
-          value = currentRefFrame[w];
+          value = currentRefFrame[x];
         }
         if (value > 32767) {
           value = value - 65536;
@@ -504,7 +505,7 @@ void setCalibration() {
           value = value;
         }
         //Modification to correct the gain and stuff. values set at setup instead of getting vdd and Ta every frame cause it requires to get FrameData -> way too slow.
-        value = value - (correctionValues[w]);
+        value = value - (correctionValues[x]);
         if (value > maxValue && (value < 1.3 * maxValue || value < maxValue + 20)) { //workaround to avoid > 32000 values... Why it happens with gain correction ? + avoid abberant value
           maxValue = value;
         }
@@ -825,7 +826,7 @@ void rawReading() {
     Serial.print(" reg value = ");
     Serial.println(reg_value);
     reg_value &= ~0x02;
-    *((uint32_t*) 0x3FF53004 )  = reg_value;
+      ((uint32_t*) 0x3FF53004 )  = reg_value;
     Serial.print(" reg value = ");
     Serial.println(reg_value);*/
 #endif
