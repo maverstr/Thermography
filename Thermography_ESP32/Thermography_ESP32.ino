@@ -7,7 +7,6 @@
 #include "TFT_eSPI.h" //fast library. SPI Speed can be changed in User_setup.h. currently set at 80MHz which could cause corrupt
 // Change to 40Mhz if it happens
 #include <driver/dac.h> //Used to drive the DAC and analog out of the ESP32
-
 #include "RunningStat.cpp" //computes the running std with Welford method (1962)
 
 #define _DEBUG_ //conditional compilation for debug
@@ -896,7 +895,6 @@ void rawReading() {
         }
         stdValues[32 * i + x].Push(map(imageOutput, minValue, maxValue, 0, 255));
       }
-      Serial.print(stdValues[32 * i + x].StandardDeviation()); Serial.print(" ");
 #ifdef _SERIAL_OUTPUT_
       Serial.print(imageOutput);
       Serial.print(" ");
@@ -952,7 +950,7 @@ void rawReading() {
   digitalWrite(4, LOW);
 #endif
 
-  if ((int)frameCounter % 250 == 0) {
+  if ((int)frameCounter % 100 == 0) {
     for (int i = 0; i < 768; i++) {
       stdValues[i].Clear();
     }
