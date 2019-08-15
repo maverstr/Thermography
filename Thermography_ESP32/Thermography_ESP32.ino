@@ -125,7 +125,7 @@ bool flagTakeRefFrame = false;
 
 //Rolling average
 int rollingFrame[768];
-int rollingFrameMinus[4][768];
+int rollingFrameMinus[3][768];
 int rollingCounter = 0;
 bool rollingAverage = false;
 
@@ -148,6 +148,8 @@ int endPy = -1;
 
 //Standard Deviation
 RunningStat stdValues[768];
+int stdThreshold =25;
+bool stdColorMapping = true;
 
 
 // ***************************************
@@ -335,6 +337,17 @@ void rollingSubstraction(int counter) {
   }
 }
 
+
+// ===============================
+// =====  Standard Deviation  ====
+// ===============================
+
+void clearStdMemory() {
+  for (int i = 0; i < 768; i++) {
+    stdValues[i].Clear();
+  }
+}
+
 // ===============================
 // =====interruptions handling====
 // ===============================
@@ -445,7 +458,7 @@ void setCompareToRefFrame() {
     pressedTimeStamp = millis();
     startingTime = pressedTimeStamp;
     tft.fillRect(0, 35, 224, 203, tft.color565(0, 0, 0)); //blackens the screen to reset it
-    delay(500);
+    //delay(500);
     setCalibration();
   }
 }
@@ -486,6 +499,7 @@ void setRefFrame() {
     for (int w = 0; w < 768; w++) {
       refFrame[w] = totalRefFrame[w] >> 4;
     }
+    setCalibration();
   }
 }
 
@@ -522,6 +536,8 @@ void setCalibration() {
     }
     maxValue = maxValue - 0.1 * (maxValue - minValue); //adjusting values
     minValue = minValue + 0.1 * (maxValue - minValue);
+
+    clearStdMemory();
   }
 }
 
@@ -863,13 +879,13 @@ void rawReading() {
       if (rawVisualisation) {
         if (rollingAverage) {
           getColour((int) map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
-          if (stdValues[32 * i + x].StandardDeviation() > 25) {
+          if (stdValues[32 * i + x].StandardDeviation() > stdThreshold && stdColorMapping) {
             getColour(-250);
           }
         }
         else {
           getColour(map(imageOutput, minValue, maxValue, 0, 255));
-          if (stdValues[32 * i + x].StandardDeviation() > 25) {
+          if (stdValues[32 * i + x].StandardDeviation() > stdThreshold && stdColorMapping) {
             getColour(-250);
           }
           //getColour(map(stdValues[32*i+x].StandardDeviation(), 0, 150, 0 , 255)); //std map
@@ -882,14 +898,14 @@ void rawReading() {
         }
       }
       if (rollingAverage) {
-        if (stdValues[32 * i + x].StandardDeviation() > 25) {
+        if (stdValues[32 * i + x].StandardDeviation() > stdThreshold && stdColorMapping) {
           rawDataSum += (int)map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255);
           averageCounter++;
         }
         stdValues[32 * i + x].Push(map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
       }
       else {
-        if (stdValues[32 * i + x].StandardDeviation() > 25) {
+        if (stdValues[32 * i + x].StandardDeviation() > stdThreshold && stdColorMapping) {
           rawDataSum += (int)map(imageOutput, minValue, maxValue, 0, 255);
           averageCounter++;
         }
@@ -950,26 +966,19 @@ void rawReading() {
   digitalWrite(4, LOW);
 #endif
 
-  if ((int)frameCounter % 100 == 0) {
-    for (int i = 0; i < 768; i++) {
-      stdValues[i].Clear();
-    }
-  }
-
 }
 
 void serialDoCommand() {
   /*Commands: 0 enables temp display
-              1 sets full resolution
-              2 sets half resolution
-              3 sets 1/3 resolution
-              4 sets 1/4 resolution
+              1 sets full resolution (legacy) enable std deviation color mapping
+              2 sets half resolution (legacy) or decrease std thresh
+              3 sets 1/3 resolution (legacy) or increase std thresh
+              4 sets comparison to ref frame
+              5 sets an init frame
+              6 switches from rolling average to raw viz
               7 increases cropping
               8 decreases cropping
               9 enable raw display
-
-              5 sets an init frame
-              6 switches from rolling average to raw viz
   */
   incomingByte = Serial.read();
   if (incomingByte == 48) {
@@ -979,7 +988,7 @@ void serialDoCommand() {
     rawVisualisation = !rawVisualisation;
     frameCounter = 0;
     startingTime = millis();
-  }
+  }/*
   else if (incomingByte == 49) {
     resolutionInteger = 1;
     frameCounter = 0;
@@ -997,6 +1006,16 @@ void serialDoCommand() {
     frameCounter = 0;
     startingTime = millis();
     tft.fillRect(0, 35, 224, 203, tft.color565(0, 0, 0));
+  }
+  */
+  else if (incomingByte == 49){
+    stdColorMapping = !stdColorMapping;
+  }
+  else if (incomingByte == 50){
+    stdThreshold--;
+  }
+  else if (incomingByte == 51){
+    stdThreshold++;
   }
   else if (incomingByte == 52) {
     setCompareToRefFrame();
