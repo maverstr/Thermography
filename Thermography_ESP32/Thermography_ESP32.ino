@@ -148,7 +148,7 @@ int endPy = -1;
 
 //Standard Deviation
 RunningStat stdValues[768];
-int stdThreshold =25;
+int stdThreshold = 25;
 bool stdColorMapping = true;
 
 
@@ -505,6 +505,11 @@ void setRefFrame() {
 
 void setCalibration() {
   if (millis() > pressedTimeStamp + debounceDelay) {
+    //updates data
+    getVddAndTa(&vdd, &Ta, &mlx90640); //required too! why ??
+    for (int i = 0; i < 768; i++) {
+      correctionValues[i] = (mlx90640.offset[i] * (1 + mlx90640.kta[i] * (Ta - 25)) * (1 + mlx90640.kv[i] * (vdd - 3.3)));
+    }
     //64 frame calibration
     float value;
     maxValue = 10; //resets basic values
@@ -1007,14 +1012,14 @@ void serialDoCommand() {
     startingTime = millis();
     tft.fillRect(0, 35, 224, 203, tft.color565(0, 0, 0));
   }
-  */
-  else if (incomingByte == 49){
+*/
+  else if (incomingByte == 49) {
     stdColorMapping = !stdColorMapping;
   }
-  else if (incomingByte == 50){
+  else if (incomingByte == 50) {
     stdThreshold--;
   }
-  else if (incomingByte == 51){
+  else if (incomingByte == 51) {
     stdThreshold++;
   }
   else if (incomingByte == 52) {
