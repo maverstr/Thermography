@@ -346,6 +346,7 @@ void clearStdMemory() {
   for (int i = 0; i < 768; i++) {
     stdValues[i].Clear();
   }
+  stdThreshold = 25;
 }
 
 // ===============================
@@ -458,7 +459,6 @@ void setCompareToRefFrame() {
     pressedTimeStamp = millis();
     startingTime = pressedTimeStamp;
     tft.fillRect(0, 35, 224, 203, tft.color565(0, 0, 0)); //blackens the screen to reset it
-    //delay(500);
     setCalibration();
   }
 }
