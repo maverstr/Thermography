@@ -151,6 +151,11 @@ RunningStat stdValues[768];
 int stdThreshold = 25;
 bool stdColorMapping = false;
 
+//histogram
+int lut[768];
+int hist[256] = {0};
+int histCumSum[256] = {0};
+float pixelCounter = 0;
 
 // ***************************************
 // **************** SETUP ****************
@@ -545,10 +550,57 @@ void setCalibration() {
     minValue = minValue + 0.15 * abs(maxValue - minValue);
 
     clearStdMemory();
+    calcHistEqualization();
   }
 }
 
 
+// ===============================
+// =====      HISTOGRAM       ====
+// ===============================
+
+void calcHist() {
+  for (int i = 0; i < 256; i++) {
+    hist[i] = 0;
+  }
+  pixelCounter = 0;
+  for (int i = (0 + croppingIntegerYM); i < (24 - croppingIntegerYP); i = i + resolutionInteger) {
+    MLX90640_I2CRead(MLX90640_address,  0x0400 + 32 * i,  32, mydata); //read 32 places in memory
+    for (int x = (0 + croppingIntegerXM) ; x < (32 - croppingIntegerXP); x = x + resolutionInteger) {
+      if (flagCompareToRefFrame) {
+        imageOutput = mydata[x] - refFrame[32 * i + x];
+      }
+      else {
+        imageOutput = mydata[x];
+      }
+      if (imageOutput > 32767)
+      {
+        imageOutput = imageOutput - 65536;
+      }
+      imageOutput = imageOutput - (correctionValues[32 * i + x]);
+      imageOutput = (int)constrain(map(imageOutput, minValue, maxValue, 0, 255), 0 , 255);
+      hist[(int)imageOutput]++;
+      pixelCounter++;
+    }
+  }
+}
+
+void calcHistCumSum() {
+  int histSum = 0;
+  for (int j = 0; j < 256; j++) {
+    histSum += hist[j];
+    histCumSum[j] = histSum;
+  }
+}
+
+
+void calcHistEqualization() {
+  calcHist();
+  calcHistCumSum();
+  for (int i = 0; i < 256; i++) {
+    lut[i] = (int)(histCumSum[i] * (255.00 / pixelCounter));
+  }
+}
 
 
 // ===============================
@@ -885,13 +937,14 @@ void rawReading() {
       }
       if (rawVisualisation) {
         if (rollingAverage) {
-          getColour((int) map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
+          getColour(lut[(int) map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255)]);
           if (stdValues[32 * i + x].StandardDeviation() > stdThreshold && stdColorMapping) {
             getColour(-250);
           }
         }
         else {
-          getColour(map(imageOutput, minValue, maxValue, 0, 255));
+          //getColour(map(imageOutput, minValue, maxValue, 0, 255));
+          getColour(lut[map(imageOutput, minValue, maxValue, 0, 255)]);
           if (stdValues[32 * i + x].StandardDeviation() > stdThreshold && stdColorMapping) {
             getColour(-250);
           }
@@ -906,14 +959,14 @@ void rawReading() {
       }
       if (rollingAverage) {
         if (stdValues[32 * i + x].StandardDeviation() > stdThreshold) {
-          rawDataSum += (int)map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255);
+          rawDataSum += lut[(int)map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255)];
           averageCounter++;
         }
         stdValues[32 * i + x].Push(map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
       }
       else {
         if (stdValues[32 * i + x].StandardDeviation() > stdThreshold) {
-          rawDataSum += (int)map(imageOutput, minValue, maxValue, 0, 255);
+          rawDataSum += lut[(int)map(imageOutput, minValue, maxValue, 0, 255)];
           averageCounter++;
         }
         stdValues[32 * i + x].Push(map(imageOutput, minValue, maxValue, 0, 255));
@@ -921,7 +974,7 @@ void rawReading() {
 #ifdef _SERIAL_OUTPUT_
       //Serial.print(imageOutput);
       imageOutput = constrain(imageOutput, minValue, maxValue);
-      Serial.print((int)map(imageOutput, minValue, maxValue, 0, 255));
+      Serial.print(lut[(int)map(imageOutput, minValue, maxValue, 0, 255)]);
       Serial.print(" ");
 #endif
     }
@@ -949,7 +1002,6 @@ void rawReading() {
 
   rawDataAverage = abs(rawDataSum / averageCounter);
   rawDataAverage = constrain(rawDataAverage, 0 , 255);
-  Serial.println(rawDataAverage);
   dac_output_voltage(DAC_CHANNEL_1, rawDataAverage);
   rawDataAverage = 0;
   rawDataSum = 0;
