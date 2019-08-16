@@ -9,8 +9,8 @@
 #include <driver/dac.h> //Used to drive the DAC and analog out of the ESP32
 #include "RunningStat.cpp" //computes the running std with Welford method (1962)
 
-#define _DEBUG_ //conditional compilation for debug
-//#define _SERIAL_OUTPUT_
+//#define _DEBUG_ //conditional compilation for debug
+#define _SERIAL_OUTPUT_
 
 
 //Functions declaration
@@ -149,7 +149,7 @@ int endPy = -1;
 //Standard Deviation
 RunningStat stdValues[768];
 int stdThreshold = 25;
-bool stdColorMapping = true;
+bool stdColorMapping = false;
 
 
 // ***************************************
@@ -515,32 +515,34 @@ void setCalibration() {
     maxValue = 10; //resets basic values
     minValue = 0;
     for (int w = 0; w < 64; w++) {
-      MLX90640_I2CRead(MLX90640_address,  0x0400,  768, currentRefFrame);
-      for (int x = 0; x < 768; x++) {
-        if (flagCompareToRefFrame) {
-          value = currentRefFrame[x] - refFrame[x];
-        }
-        else {
-          value = currentRefFrame[x];
-        }
-        if (value > 32767) {
-          value = value - 65536;
-        }
-        else {
-          value = value;
-        }
-        //Modification to correct the gain and stuff. values set at setup instead of getting vdd and Ta every frame cause it requires to get FrameData -> way too slow.
-        value = value - (correctionValues[x]);
-        if (value > maxValue && (value < 1.3 * maxValue || value < maxValue + 20)) { //workaround to avoid > 32000 values... Why it happens with gain correction ? + avoid abberant value
-          maxValue = value;
-        }
-        else if (value < minValue && (value > 1.3 * minValue || value > minValue - 20)) {
-          minValue = value;
+      for (int i = (0 + croppingIntegerYM); i < (24 - croppingIntegerYP); i = i + resolutionInteger) {
+        MLX90640_I2CRead(MLX90640_address,  0x0400 + 32 * i,  32, mydata); //read 32 places in memory
+        for (int x = (0 + croppingIntegerXM) ; x < (32 - croppingIntegerXP); x = x + resolutionInteger) {
+          if (flagCompareToRefFrame) {
+            value = currentRefFrame[32 * i + x] - refFrame[32 * i + x];
+          }
+          else {
+            value = currentRefFrame[32 * i + x];
+          }
+          if (value > 32767) {
+            value = value - 65536;
+          }
+          else {
+            value = value;
+          }
+          //Modification to correct the gain and stuff. values set at setup instead of getting vdd and Ta every frame cause it requires to get FrameData -> way too slow.
+          value = value - (correctionValues[32 * i + x]);
+          if (value > maxValue && (abs(value) < 1.3 * abs(maxValue) || abs(value) < abs(maxValue) + 20)) { //workaround to avoid > 32000 values... Why it happens with gain correction ? + avoid abberant value
+            maxValue = value;
+          }
+          else if (value < minValue && (abs(value) < 1.3 * abs(minValue) || abs(value) < abs(minValue) + 20)) {
+            minValue = value;
+          }
         }
       }
     }
-    maxValue = maxValue - 0.1 * (maxValue - minValue); //adjusting values
-    minValue = minValue + 0.1 * (maxValue - minValue);
+    maxValue = maxValue - 0.15 * abs(maxValue - minValue); //adjusting values
+    minValue = minValue + 0.15 * abs(maxValue - minValue);
 
     clearStdMemory();
   }
@@ -903,21 +905,23 @@ void rawReading() {
         }
       }
       if (rollingAverage) {
-        if (stdValues[32 * i + x].StandardDeviation() > stdThreshold && stdColorMapping) {
+        if (stdValues[32 * i + x].StandardDeviation() > stdThreshold) {
           rawDataSum += (int)map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255);
           averageCounter++;
         }
         stdValues[32 * i + x].Push(map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
       }
       else {
-        if (stdValues[32 * i + x].StandardDeviation() > stdThreshold && stdColorMapping) {
+        if (stdValues[32 * i + x].StandardDeviation() > stdThreshold) {
           rawDataSum += (int)map(imageOutput, minValue, maxValue, 0, 255);
           averageCounter++;
         }
         stdValues[32 * i + x].Push(map(imageOutput, minValue, maxValue, 0, 255));
       }
 #ifdef _SERIAL_OUTPUT_
-      Serial.print(imageOutput);
+      //Serial.print(imageOutput);
+      imageOutput = constrain(imageOutput, minValue, maxValue);
+      Serial.print((int)map(imageOutput, minValue, maxValue, 0, 255));
       Serial.print(" ");
 #endif
     }
@@ -943,8 +947,9 @@ void rawReading() {
   Serial.println("@");
 #endif
 
-  rawDataAverage = (abs((rawDataSum / averageCounter)) < 255) ? abs(rawDataSum / averageCounter) : 255 ;
-  //rawDataAverage = abs(rawDataSum / averageCounter);
+  rawDataAverage = abs(rawDataSum / averageCounter);
+  rawDataAverage = constrain(rawDataAverage, 0 , 255);
+  Serial.println(rawDataAverage);
   dac_output_voltage(DAC_CHANNEL_1, rawDataAverage);
   rawDataAverage = 0;
   rawDataSum = 0;
