@@ -9,7 +9,7 @@
 #include <driver/dac.h> //Used to drive the DAC and analog out of the ESP32
 #include "RunningStat.cpp" //computes the running std with Welford method (1962)
 
-//#define _DEBUG_ //conditional compilation for debug
+#define _DEBUG_ //conditional compilation for debug
 #define _SERIAL_OUTPUT_
 
 
@@ -49,8 +49,8 @@ float T_center;
 #define TS_MAXX 920
 #define TS_MAXY 940
 //touchscreen pressure
-#define MINPRESSURE 20
-#define MAXPRESSURE 1000
+#define MINPRESSURE 2
+#define MAXPRESSURE 5000
 TouchScreen ts = TouchScreen(XP, YP, XM, YM, 319); //319ohms resistor across X plate!
 
 TFT_eSPI tft = TFT_eSPI(); //pins are coded in user_setup.h in library
@@ -148,7 +148,7 @@ int endPy = -1;
 
 //Standard Deviation
 RunningStat stdValues[768];
-int stdThreshold = 25;
+int stdThreshold = 40;
 bool stdColorMapping = false;
 
 //histogram
