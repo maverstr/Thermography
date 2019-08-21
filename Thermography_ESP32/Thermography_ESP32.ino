@@ -92,6 +92,7 @@ uint16_t currentRefFrame[768];
 uint16_t calibrationFrame[768];
 float imageOutput = 0;
 int resolutionInteger = 1;
+uint16_t reg_value;
 
 float correctionValues[768];
 
@@ -907,15 +908,27 @@ void temperatureDrawing(float T_max, float T_min, float T_center) {
 void rawReading() {
 #ifdef _DEBUG_
   digitalWrite(4, HIGH);
-
-  uint32_t reg_value = *((uint32_t*) 0x3FF53004 );
-  Serial.print(" reg value = ");
-  Serial.println(reg_value);/*
-    reg_value &= ~0x02;
-     ((uint32_t*) 0x3FF53004 )  = reg_value;
+  /*
+    uint32_t reg_value = *((uint32_t*) 0x3FF53004 );
     Serial.print(" reg value = ");
-    Serial.println(reg_value);*/
+    Serial.println(reg_value);
+      reg_value &= ~0x02;
+       ((uint32_t*) 0x3FF53004 )  = reg_value;
+      Serial.print(" reg value = ");
+      Serial.println(reg_value);*/
 #endif
+  MLX90640_I2CRead(0x33, 0x8000, 1, &reg_value);
+  reg_value = reg_value >> 3;
+  reg_value &= 1;
+while(!reg_value){
+  MLX90640_I2CRead(0x33, 0x8000, 1, &reg_value);
+  reg_value = reg_value >> 3;
+  reg_value &= 1; //assess bit 3 of 0x800
+}
+  MLX90640_I2CRead(0x33,0x800, 1, &reg_value);
+  reg_value += ~1000; //sets bit 3 of 0x800 to 0
+  MLX90640_I2CWrite(0x33, 0x8000, reg_value); //resets status register to 0
+
   for (int i = (0 + croppingIntegerYM); i < (24 - croppingIntegerYP); i = i + resolutionInteger) {
     MLX90640_I2CRead(MLX90640_address,  0x0400 + 32 * i,  32, mydata); //read 32 places in memory
     for (int x = (0 + croppingIntegerXM) ; x < (32 - croppingIntegerXP); x = x + resolutionInteger) {
@@ -937,14 +950,14 @@ void rawReading() {
       }
       if (rawVisualisation) {
         if (rollingAverage) {
-          getColour(lut[(int) map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255)]);
+          getColour((int) map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
           if (stdValues[32 * i + x].StandardDeviation() > stdThreshold && stdColorMapping) {
             getColour(-250);
           }
         }
         else {
           //getColour(map(imageOutput, minValue, maxValue, 0, 255));
-          getColour(lut[map(imageOutput, minValue, maxValue, 0, 255)]);
+          getColour(map(imageOutput, minValue, maxValue, 0, 255));
           if (stdValues[32 * i + x].StandardDeviation() > stdThreshold && stdColorMapping) {
             getColour(-250);
           }
@@ -959,14 +972,14 @@ void rawReading() {
       }
       if (rollingAverage) {
         if (stdValues[32 * i + x].StandardDeviation() > stdThreshold) {
-          rawDataSum += lut[(int)map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255)];
+          rawDataSum += (int)map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255);
           averageCounter++;
         }
         stdValues[32 * i + x].Push(map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
       }
       else {
         if (stdValues[32 * i + x].StandardDeviation() > stdThreshold) {
-          rawDataSum += lut[(int)map(imageOutput, minValue, maxValue, 0, 255)];
+          rawDataSum += (int)map(imageOutput, minValue, maxValue, 0, 255);
           averageCounter++;
         }
         stdValues[32 * i + x].Push(map(imageOutput, minValue, maxValue, 0, 255));
