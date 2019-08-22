@@ -730,19 +730,6 @@ boolean isConnected()
 
 
 void touchScreenHandle() {
-  if (flagInitPoint) {
-    tft.fillRect(0, 0, BOXSIZE, BOXSIZE, tft.color565(3, 78, 252));
-  }
-  else {
-    tft.fillRect(0, 0, BOXSIZE, BOXSIZE, tft.color565(0, 255, 0));
-  }
-  if (flagEndPoint) {
-    tft.fillRect(0 , 240 - BOXSIZE, BOXSIZE, BOXSIZE, tft.color565(3, 78, 252));
-  }
-  else {
-    tft.fillRect(0 , 240 - BOXSIZE, BOXSIZE, BOXSIZE, tft.color565(255, 0, 255));
-  }
-  tft.fillRect(0, 120 - (BOXSIZE / 2), BOXSIZE, BOXSIZE, tft.color565(255, 255, 0));
   p = ts.getPoint();
   if (p.z > MINPRESSURE && p.z < MAXPRESSURE) {
     // Scale from ~0->1000 to tft.width using the calibration
@@ -787,6 +774,33 @@ void touchScreenHandle() {
       }
 
     }
+  }
+}
+
+void drawTouchscreenButtons() {
+  if (flagInitPoint) {
+    tft.fillRect(0, 0, BOXSIZE, BOXSIZE, tft.color565(3, 78, 252));
+  }
+  else {
+    tft.fillRect(0, 0, BOXSIZE, BOXSIZE, tft.color565(0, 255, 0));
+  }
+  if (flagEndPoint) {
+    tft.fillRect(0 , 240 - BOXSIZE, BOXSIZE, BOXSIZE, tft.color565(3, 78, 252));
+  }
+  else {
+    tft.fillRect(0 , 240 - BOXSIZE, BOXSIZE, BOXSIZE, tft.color565(255, 0, 255));
+  }
+  tft.fillRect(0, 120 - (BOXSIZE / 2), BOXSIZE, BOXSIZE, tft.color565(255, 255, 0));
+
+  if (!(initPx == -1 || initPy == -1)) {//faster than checking != and &&
+    tft.fillCircle(initPx, initPy, 10, tft.color565(0, 255, 0));
+  }
+  if (!(endPx == -1 || endPy == -1 || initPx == -1 || initPx == -1)) {
+    tft.fillCircle(endPx, endPy, 10, tft.color565(255, 0, 255)); //draws end point
+    tft.drawLine(initPx, initPy, endPx, initPy, tft.color565(255, 255, 0));//draws yellow window
+    tft.drawLine(initPx, initPy, initPx, endPy, tft.color565(255, 255, 0));
+    tft.drawLine(endPx, initPy, endPx, endPy, tft.color565(255, 255, 0));
+    tft.drawLine(initPx, endPy, endPx, endPy, tft.color565(255, 255, 0));
   }
 }
 
@@ -921,13 +935,13 @@ void rawReading() {
   reg_value = reg_value >> 3;
   reg_value &= 1;
   while (!reg_value) {
-    #ifdef _DEBUG_
-      Serial.println("waiting for a new frame");
-      digitalWrite(4, LOW);
-      digitalWrite(4, HIGH);
-    #endif
+#ifdef _DEBUG_
+    Serial.println("waiting for a new frame");
+    digitalWrite(4, LOW);
+    digitalWrite(4, HIGH);
+#endif
     MLX90640_I2CRead(MLX90640_address, 0x8000, 1, &reg_value);
-    reg_value = reg_value >> 3;    
+    reg_value = reg_value >> 3;
     reg_value &= 1; //assess bit 3 of 0x8000
   }
   MLX90640_I2CRead(MLX90640_address, 0x8000, 1, &reg_value);
@@ -1030,17 +1044,9 @@ void rawReading() {
     rollingCounterIncrease(&rollingCounter);
     rollingSubstraction(rollingCounter);
   }
-
-  //Draw the init and end point every frame to avoid being erased while refreshing
-  if (!(initPx == -1 || initPy == -1)) {//faster than checking != and &&
-    tft.fillCircle(initPx, initPy, 10, tft.color565(0, 255, 0));
-  }
-  if (!(endPx == -1 || endPy == -1 || initPx == -1 || initPx == -1)) {
-    tft.fillCircle(endPx, endPy, 10, tft.color565(255, 0, 255)); //draws end point
-    tft.drawLine(initPx, initPy, endPx, initPy, tft.color565(255, 255, 0));//draws yellow window
-    tft.drawLine(initPx, initPy, initPx, endPy, tft.color565(255, 255, 0));
-    tft.drawLine(endPx, initPy, endPx, endPy, tft.color565(255, 255, 0));
-    tft.drawLine(initPx, endPy, endPx, endPy, tft.color565(255, 255, 0));
+  if (rawVisualisation) {
+    //Draw the init and end point every frame to avoid being erased while refreshing
+    drawTouchscreenButtons();
   }
 #ifdef _DEBUG_
   digitalWrite(4, LOW);
