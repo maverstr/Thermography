@@ -9,7 +9,7 @@
 #include <driver/dac.h> //Used to drive the DAC and analog out of the ESP32
 #include "RunningStat.cpp" //computes the running std with Welford method (1962)
 
-#define _DEBUG_ //conditional compilation for debug
+//#define _DEBUG_ //conditional compilation for debug
 //#define _SERIAL_OUTPUT_
 
 
@@ -475,8 +475,7 @@ void setCalibration() {
         }
       }
     }
-
-
+    
     for (int w = 0; w < 64; w++) {
       for (int i = (0 + croppingIntegerYM); i < (24 - croppingIntegerYP); i = i + resolutionInteger) {
         MLX90640_I2CRead(MLX90640_address,  0x0400 + 32 * i,  32, mydata); //read 32 places in memory
@@ -501,8 +500,8 @@ void setCalibration() {
         }
       }
     }
-    maxValue = (int)(maxValue - 0.1 * abs(maxValue - minValue)); //adjusting values
-    minValue = (int)(minValue + 0.1 * abs(maxValue - minValue));
+    maxValue = (int)(maxValue - 0.15 * abs(maxValue - minValue)); //adjusting values
+    minValue = (int)(minValue + 0.15 * abs(maxValue - minValue));
 
     clearStdMemory();
     calcHistEqualization();
@@ -868,8 +867,7 @@ void rawReading() {
   digitalWrite(4, HIGH);
 #endif
   MLX90640_I2CRead(MLX90640_address, 0x8000, 1, &reg_value);
-  reg_value = reg_value >> 3;
-  reg_value &= 1;
+  reg_value = (reg_value >> 3) & 1;//assess bit 3 of 0x8000
   while (!reg_value) {
 #ifdef _DEBUG_
     //Serial.println("waiting for a new frame");
@@ -877,13 +875,11 @@ void rawReading() {
     digitalWrite(4, HIGH);
 #endif
     MLX90640_I2CRead(MLX90640_address, 0x8000, 1, &reg_value);
-    reg_value = reg_value >> 3;
-    reg_value &= 1; //assess bit 3 of 0x8000
+    reg_value = (reg_value >> 3) & 1;//assess bit 3 of 0x8000
   }
   MLX90640_I2CRead(MLX90640_address, 0x8000, 1, &reg_value);
   reg_value &= ~0x08; //clears bit 3 of 0x8000 to 0
   MLX90640_I2CWrite(MLX90640_address, 0x8000, reg_value); //resets status register to 0
-
 
   for (int i = (0 + croppingIntegerYM); i < (24 - croppingIntegerYP); i = i + resolutionInteger) {
     MLX90640_I2CRead(MLX90640_address,  0x0400 + 32 * i,  32, mydata); //read 32 places in memory
@@ -903,13 +899,13 @@ void rawReading() {
       }
       if (rawVisualisation) {
         if (rollingAverage) {
-          getColour((int) map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
+          getColour(lut[map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255)]);
           if (stdValues[32 * i + x].StandardDeviation() > stdThreshold && stdColorMapping) {
             getColour(-250);
           }
         }
         else {
-          getColour((int)map(imageOutput, minValue, maxValue, 0, 255));
+          getColour(lut[map(imageOutput, minValue, maxValue, 0, 255)]);
           if (stdValues[32 * i + x].StandardDeviation() > stdThreshold && stdColorMapping) {
             getColour(-250);
           }
@@ -919,14 +915,14 @@ void rawReading() {
       }
       if (rollingAverage) {
         if (stdValues[32 * i + x].StandardDeviation() > stdThreshold) {
-          rawDataSum += lut[(int)map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255)];
+          rawDataSum += lut[map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255)];
           averageCounter++;
         }
         stdValues[32 * i + x].Push(map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
       }
       else {
         if (stdValues[32 * i + x].StandardDeviation() > stdThreshold) {
-          rawDataSum += lut[(int)map(imageOutput, minValue, maxValue, 0, 255)];
+          rawDataSum += lut[map(imageOutput, minValue, maxValue, 0, 255)];
           averageCounter++;
         }
         stdValues[32 * i + x].Push(map(imageOutput, minValue, maxValue, 0, 255));
@@ -935,12 +931,10 @@ void rawReading() {
       //Serial.print(imageOutput);
       imageOutput = constrain(imageOutput, minValue, maxValue);
       Serial.print(lut[(int)map(imageOutput, minValue, maxValue, 0, 255)]);
-      Serial.print(" ");
+      Serial.print(F(" "));
 #endif
     }
-    Serial.println();
 #ifdef _SERIAL_OUTPUT_
-    delay(1);
     Serial.println();
 #endif
   }// do loop thru all 24 lines!
@@ -954,7 +948,7 @@ void rawReading() {
   frameCounter++;
 #endif
 #ifdef _SERIAL_OUTPUT_
-  Serial.println("@");
+  Serial.println(F("@"));
 #endif
 
   rawDataAverage = abs(rawDataSum / averageCounter);
