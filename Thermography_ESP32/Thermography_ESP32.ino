@@ -945,7 +945,7 @@ void rawReading() {
     reg_value &= 1; //assess bit 3 of 0x8000
   }
   MLX90640_I2CRead(MLX90640_address, 0x8000, 1, &reg_value);
-  reg_value &= ~0x08; //sets bit 3 of 0x8000 to 0
+  reg_value &= ~0x08; //clears bit 3 of 0x8000 to 0
   MLX90640_I2CWrite(MLX90640_address, 0x8000, reg_value); //resets status register to 0
 
   for (int i = (0 + croppingIntegerYM); i < (24 - croppingIntegerYP); i = i + resolutionInteger) {
