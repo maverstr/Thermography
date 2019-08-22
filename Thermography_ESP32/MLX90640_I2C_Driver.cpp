@@ -85,10 +85,10 @@ void MLX90640_I2CFreqSet(int freq)
 int MLX90640_I2CWrite(uint8_t _deviceAddress, unsigned int writeAddress, uint16_t data)
 {
   Wire.beginTransmission((uint8_t)_deviceAddress);
-  Wire.write(writeAddress >> 8); //MSB
-  Wire.write(writeAddress & 0xFF); //LSB
-  Wire.write(data >> 8); //MSB
-  Wire.write(data & 0xFF); //LSB
+  Wire.write((writeAddress & 0xFF00) >> 8); //MSB
+  Wire.write(writeAddress & 0x00FF); //LSB
+  Wire.write((data & 0XFF00) >> 8); //MSB
+  Wire.write(data & 0x00FF); //LSB
   if (Wire.endTransmission() != 0)
   {
     //Sensor did not ACK
@@ -100,7 +100,7 @@ int MLX90640_I2CWrite(uint8_t _deviceAddress, unsigned int writeAddress, uint16_
   MLX90640_I2CRead(_deviceAddress, writeAddress, 1, &dataCheck);
   if (dataCheck != data)
   {
-    //Serial.println("The write request didn't stick");
+    Serial.println("The write request didn't stick");
     return -2;
   }
 

@@ -917,17 +917,22 @@ void rawReading() {
       Serial.print(" reg value = ");
       Serial.println(reg_value);*/
 #endif
-  MLX90640_I2CRead(0x33, 0x8000, 1, &reg_value);
+  MLX90640_I2CRead(MLX90640_address, 0x8000, 1, &reg_value);
   reg_value = reg_value >> 3;
   reg_value &= 1;
-while(!reg_value){
-  MLX90640_I2CRead(0x33, 0x8000, 1, &reg_value);
-  reg_value = reg_value >> 3;
-  reg_value &= 1; //assess bit 3 of 0x800
-}
-  MLX90640_I2CRead(0x33,0x800, 1, &reg_value);
-  reg_value += ~1000; //sets bit 3 of 0x800 to 0
-  MLX90640_I2CWrite(0x33, 0x8000, reg_value); //resets status register to 0
+  while (!reg_value) {
+    #ifdef _DEBUG_
+      Serial.println("waiting for a new frame");
+      digitalWrite(4, LOW);
+      digitalWrite(4, HIGH);
+    #endif
+    MLX90640_I2CRead(MLX90640_address, 0x8000, 1, &reg_value);
+    reg_value = reg_value >> 3;    
+    reg_value &= 1; //assess bit 3 of 0x8000
+  }
+  MLX90640_I2CRead(MLX90640_address, 0x8000, 1, &reg_value);
+  reg_value &= ~0x08; //sets bit 3 of 0x8000 to 0
+  MLX90640_I2CWrite(MLX90640_address, 0x8000, reg_value); //resets status register to 0
 
   for (int i = (0 + croppingIntegerYM); i < (24 - croppingIntegerYP); i = i + resolutionInteger) {
     MLX90640_I2CRead(MLX90640_address,  0x0400 + 32 * i,  32, mydata); //read 32 places in memory
@@ -950,14 +955,14 @@ while(!reg_value){
       }
       if (rawVisualisation) {
         if (rollingAverage) {
-          getColour((int) map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
+          getColour(lut[(int) map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255)]);
           if (stdValues[32 * i + x].StandardDeviation() > stdThreshold && stdColorMapping) {
             getColour(-250);
           }
         }
         else {
           //getColour(map(imageOutput, minValue, maxValue, 0, 255));
-          getColour(map(imageOutput, minValue, maxValue, 0, 255));
+          getColour(lut[(int)map(imageOutput, minValue, maxValue, 0, 255)]);
           if (stdValues[32 * i + x].StandardDeviation() > stdThreshold && stdColorMapping) {
             getColour(-250);
           }
@@ -972,14 +977,14 @@ while(!reg_value){
       }
       if (rollingAverage) {
         if (stdValues[32 * i + x].StandardDeviation() > stdThreshold) {
-          rawDataSum += (int)map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255);
+          rawDataSum += lut[(int)map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255)];
           averageCounter++;
         }
         stdValues[32 * i + x].Push(map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
       }
       else {
         if (stdValues[32 * i + x].StandardDeviation() > stdThreshold) {
-          rawDataSum += (int)map(imageOutput, minValue, maxValue, 0, 255);
+          rawDataSum += lut[(int)map(imageOutput, minValue, maxValue, 0, 255)];
           averageCounter++;
         }
         stdValues[32 * i + x].Push(map(imageOutput, minValue, maxValue, 0, 255));
@@ -1056,10 +1061,10 @@ void serialDoCommand() {
               9 enable raw display
   */
   incomingByte = Serial.read();
-  if (incomingByte == 48) {
+  if (incomingByte == '0') {
     setTempVisualisation();
   }
-  else if (incomingByte == 57) {
+  else if (incomingByte == '9') {
     rawVisualisation = !rawVisualisation;
     frameCounter = 0;
     startingTime = millis();
@@ -1083,29 +1088,29 @@ void serialDoCommand() {
     tft.fillRect(0, 35, 224, 203, tft.color565(0, 0, 0));
   }
 */
-  else if (incomingByte == 49) {
+  else if (incomingByte == '1') {
     stdColorMapping = !stdColorMapping;
   }
-  else if (incomingByte == 50) {
+  else if (incomingByte == '2') {
     stdThreshold--;
   }
-  else if (incomingByte == 51) {
+  else if (incomingByte == '3') {
     stdThreshold++;
   }
-  else if (incomingByte == 52) {
+  else if (incomingByte == '4') {
     setCompareToRefFrame();
   }
-  else if (incomingByte == 53) {
+  else if (incomingByte == '5') {
     setRefFrame();
     flagGetVddAndTa = true;
   }
-  else if (incomingByte == 54) {
+  else if (incomingByte == '6') {
     setRollingAverage();
   }
-  else if (incomingByte == 55) {
+  else if (incomingByte == '7') {
     cropIncrease();
   }
-  else if (incomingByte == 56) {
+  else if (incomingByte == '8') {
     cropDecrease();
   }
 }
