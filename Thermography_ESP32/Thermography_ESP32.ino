@@ -14,7 +14,7 @@
 
 
 //Functions declaration
-void IRAM_ATTR setRefFrameActivateFlag(); //loaded in quick ram
+void IRAM_ATTR setCalibrationFlag(); //loaded in quick ram
 void IRAM_ATTR setRollingAvFlag();
 void IRAM_ATTR interruptChangeCroppingMode();
 void IRAM_ATTR setRefFrameTakeFlag() ;
@@ -26,13 +26,12 @@ void setRefFrame();
 void getColour(int j);
 boolean isConnected();
 void drawUI();
-void touchScreenHandle();
+void touchScreenHandler();
 void serialDoCommand();
 void rollingCounterIncrease(int *counter);
 void rollingSubstraction(int counter);
 void setRollingAverage();
 void setTempVisualisation();
-void setCompareToRefFrame();
 
 float T_max;
 float T_min;
@@ -75,9 +74,8 @@ int xPos, yPos;
 int R_colour, G_colour, B_colour;
 int i, j;
 
-bool visualisation = false;
+bool tempVisualisation = false;
 bool rawVisualisation = true;
-String output;
 int incomingByte = 0;
 double frameCounter = 1;
 unsigned long startingTime;
@@ -85,19 +83,15 @@ unsigned long currentTime;
 float rate;
 unsigned long timeDelta;
 
-uint16_t mydata[32];//array
-uint16_t startvalue[32];//array
-uint16_t refFrame[768];
-uint16_t currentRefFrame[768];
-uint16_t calibrationFrame[768];
+uint16_t mydata[32];
 int imageOutput = 0;
 int resolutionInteger = 1;
 uint16_t reg_value;
 
 float correctionValues[768];
 
-int maxValue = 150;
-int minValue = -50;
+int maxValue = 10;
+int minValue = 0;
 
 //Cropping and drawing
 int croppingInteger = 0; //The one used with buttons
@@ -116,12 +110,10 @@ const int drawingModePin = 23;
 
 //Pushbuttons
 const int RollingAvPin = 18;
-const int refFrameActivatePin = 19;
-const int refTakePin = 5;
+const int CalibrationPin = 5;
+const int refTakePin = 19;
 uint32_t pressedTimeStamp;
-const uint32_t debounceDelay = 500;
-bool flagCropIncrease = false;
-bool flagCropDecrease = false;
+const uint32_t debounceDelay = 400;
 bool flagTakeRefFrame = false;
 
 //Rolling average
@@ -132,10 +124,9 @@ bool rollingAverage = false;
 
 float vdd;
 float Ta;
-bool flagGetVddAndTa = false;
 bool flagCompareToRefFrame = false;
 bool flagRollingAverage = false;
-bool flagSetCompareToRefFrame = false;
+bool flagSetCalibration = false;
 
 //touchscreen
 #define BOXSIZE 50
@@ -158,8 +149,7 @@ int hist[256] = {0};
 int histCumSum[256] = {0};
 float pixelCounter = 0;
 
-
-//test integrate derivatives
+//integrate derivatives
 int integrateTable[768] = {0};
 int lastFrame[768] = {0};
 int derivative[768] = {0};
@@ -179,13 +169,13 @@ void setup()
   Wire.setClock(400000); //Increase I2C clock speed to 400kHz
   analogReadResolution(10); //required for touchscreen
   pinMode(RollingAvPin, INPUT_PULLUP);
-  pinMode(refFrameActivatePin, INPUT_PULLUP);
+  pinMode(CalibrationPin, INPUT_PULLUP);
   pinMode(refTakePin, INPUT_PULLUP);
   pinMode(drawingModePin, INPUT);
 #ifdef _DEBUG_
   pinMode(4, OUTPUT);
 #endif
-  attachInterrupt(digitalPinToInterrupt(refFrameActivatePin), setRefFrameActivateFlag, FALLING);
+  attachInterrupt(digitalPinToInterrupt(CalibrationPin), setCalibrationFlag, FALLING);
   attachInterrupt(digitalPinToInterrupt(RollingAvPin), setRollingAvFlag, FALLING);
   attachInterrupt(digitalPinToInterrupt(refTakePin), setRefFrameTakeFlag, FALLING);
   attachInterrupt(digitalPinToInterrupt(drawingModePin), interruptChangeCroppingMode, RISING);
@@ -239,14 +229,6 @@ void setup()
   setRefFrame(); //Gets a starting init frame
   setCalibration();
   startingTime = millis();
-  /*
-    uint32_t reg_value = *((uint32_t*) 0x3FF53004 );
-      Serial.print(" reg value = ");
-      Serial.println(reg_value);
-      reg_value &= ~0x02;
-       ((uint32_t*) 0x3FF53004 )  = reg_value;
-      pinMode(22, 0x03);
-  */
 }
 
 
@@ -258,18 +240,14 @@ void setup()
 void loop()
 {
   if (flagDrawingMode) {//handles the touchscreen selection
-    touchScreenHandle();
+    touchScreenHandler();
   }
 
-  if (visualisation) {
+  if (tempVisualisation) {
     temperatureReading();
   }
 
   else {
-    if (flagGetVddAndTa) {
-      getVddAndTa(&vdd, &Ta, &mlx90640);
-      flagGetVddAndTa = false;
-    }
     rawReading();
   }
 
@@ -278,30 +256,18 @@ void loop()
   }
 
   //-----------------FLAG HANDLING----------------------------
-
-  if (flagCropIncrease) { //handles the cropping flags
-    cropIncrease();
-    flagCropIncrease = false;
-  }
-  if (flagCropDecrease) {
-    cropDecrease();
-    flagCropDecrease = false;
-  }
-
   if (flagChangeCroppingMode) {
     if (digitalRead(drawingModePin)) {
       setCroppingInteger(0, 320, 0, 240); //Resets to full view
       flagDrawingMode = true;
-
-      visualisation = false;
+      tempVisualisation = false;
       MLX90640_SetRefreshRate(MLX90640_address, 0x07);
     }
     else {
       setCroppingInteger(); //gets back to previous cropping integers
       drawUI();
       flagDrawingMode = false;
-
-      visualisation = true;
+      tempVisualisation = true;
       MLX90640_SetRefreshRate(MLX90640_address, 0x04);
     }
     flagChangeCroppingMode = false;
@@ -310,9 +276,9 @@ void loop()
     setRollingAverage();
     flagRollingAverage = false;
   }
-  if (flagSetCompareToRefFrame) {
-    setCompareToRefFrame();
-    flagSetCompareToRefFrame = false;
+  if (flagSetCalibration) {
+    setCalibration();
+    flagSetCalibration = false;
   }
   if (flagTakeRefFrame) {
     setRefFrame();
@@ -321,6 +287,29 @@ void loop()
 }
 
 //----------------------------------------------------
+
+// ===============================
+// =====interruptions handling====
+// ===============================
+void IRAM_ATTR setRollingAvFlag() {
+  flagRollingAverage = true;
+}
+
+void IRAM_ATTR setCalibrationFlag() {
+  flagSetCalibration = true;
+}
+void IRAM_ATTR setRefFrameTakeFlag() {
+  flagTakeRefFrame = true;
+}
+
+void IRAM_ATTR interruptChangeCroppingMode() {
+  flagChangeCroppingMode = true;
+}
+
+
+// ===============================
+// =====    retrieve data     ====
+// ===============================
 
 void getVddAndTa(float *vdd, float *Ta, paramsMLX90640 *mlx90640) {
   static uint16_t mlx90640Frame[834];
@@ -360,26 +349,6 @@ void clearStdMemory() {
     stdValues[i].Clear();
   }
   stdThreshold = 25;
-}
-
-// ===============================
-// =====interruptions handling====
-// ===============================
-void IRAM_ATTR setRollingAvFlag() {
-  //flagCropIncrease = true;
-  flagRollingAverage = true;
-}
-
-void IRAM_ATTR setRefFrameActivateFlag() {
-  //flagCropDecrease = true;
-  flagSetCompareToRefFrame = true;
-}
-void IRAM_ATTR setRefFrameTakeFlag() {
-  flagTakeRefFrame = true;
-}
-
-void IRAM_ATTR interruptChangeCroppingMode() {
-  flagChangeCroppingMode = true;
 }
 
 // ===============================
@@ -465,20 +434,9 @@ void setRollingAverage() {
   }
 }
 
-void setCompareToRefFrame() {
-  if (millis() > pressedTimeStamp + debounceDelay) {
-    flagCompareToRefFrame = !flagCompareToRefFrame;
-    frameCounter = 0;
-    pressedTimeStamp = millis();
-    startingTime = pressedTimeStamp;
-    tft.fillRect(0, 35, 224, 203, tft.color565(0, 0, 0)); //blackens the screen to reset it
-    setCalibration();
-  }
-}
-
 void setTempVisualisation() {
-  visualisation = !visualisation;
-  if (visualisation == true) {
+  tempVisualisation = !tempVisualisation;
+  if (tempVisualisation == true) {
     MLX90640_SetRefreshRate(MLX90640_address, 0x04);
   }
   else {
@@ -486,33 +444,11 @@ void setTempVisualisation() {
   }
 }
 
-// ===============================
-// =====  set the init frame  ====
-// ===============================
-
 void setRefFrame() {
-
-  /*//1 frame reference
-    if (millis() > pressedTimeStamp + debounceDelay) {
-    MLX90640_I2CRead(MLX90640_address,  0x0400,  768, refFrame);
-    }*/
-
   if (millis() > pressedTimeStamp + debounceDelay) {
-    //16 frames reference
-    uint32_t totalRefFrame[768];
-    for (int w = 0; w < 768; w++) {
-      totalRefFrame[w] = 0;
+    for (int i = 0; i < 768; i++) {
+      integrateTable[i] = 0;
     }
-    for (int w = 0; w < 16; w++) {
-      MLX90640_I2CRead(MLX90640_address,  0x0400,  768, currentRefFrame);
-      for (int x = 0; x < 768; x++) {
-        totalRefFrame[x] = totalRefFrame[x] + currentRefFrame[x];
-      }
-    }
-    for (int w = 0; w < 768; w++) {
-      refFrame[w] = totalRefFrame[w] >> 4;
-    }
-    setCalibration();
   }
 }
 
@@ -524,16 +460,10 @@ void setCalibration() {
     minValue = 0;
 
     if (doonce) {
-      Serial.println("in doonce");
       for (int i = (0 + croppingIntegerYM); i < (24 - croppingIntegerYP); i = i + resolutionInteger) {
         MLX90640_I2CRead(MLX90640_address,  0x0400 + 32 * i,  32, mydata); //read 32 places in memory
         for (int x = (0 + croppingIntegerXM) ; x < (32 - croppingIntegerXP); x = x + resolutionInteger) {
-          if (flagCompareToRefFrame) {
-            value = currentRefFrame[32 * i + x] - refFrame[32 * i + x];
-          }
-          else {
-            value = currentRefFrame[32 * i + x];
-          }
+          value = mydata[x];
           if (value > 32767) {
             value = value - 65536;
           }
@@ -551,12 +481,7 @@ void setCalibration() {
       for (int i = (0 + croppingIntegerYM); i < (24 - croppingIntegerYP); i = i + resolutionInteger) {
         MLX90640_I2CRead(MLX90640_address,  0x0400 + 32 * i,  32, mydata); //read 32 places in memory
         for (int x = (0 + croppingIntegerXM) ; x < (32 - croppingIntegerXP); x = x + resolutionInteger) {
-          if (flagCompareToRefFrame) {
-            value = currentRefFrame[32 * i + x] - refFrame[32 * i + x];
-          }
-          else {
-            value = currentRefFrame[32 * i + x];
-          }
+          value = mydata[32 * i + x];
           if (value > 32767) {
             value = value - 65536;
           }
@@ -567,19 +492,17 @@ void setCalibration() {
           integrateTable[32 * i + x] += derivative[32 * i + x];
           lastFrame[32 * i + x] = value;
           value = integrateTable[32 * i + x];
-          if (value > maxValue && (abs(value) < 1.3 * abs(maxValue) || abs(value) < abs(maxValue) + 20)) { //workaround to avoid > 32000 values... Why it happens with gain correction ? + avoid abberant value
+          if (value > maxValue && (abs(value) < 1.3 * abs(maxValue) || abs(value) < abs(maxValue) + 20)) {//avoid abberant value
             maxValue = value;
-            Serial.print("max value : "); Serial.println(maxValue);
           }
           else if (value < minValue && (abs(value) < 1.3 * abs(minValue) || abs(value) < abs(minValue) + 20)) {
             minValue = value;
-            Serial.print("min value : "); Serial.println(minValue);
           }
         }
       }
     }
-    maxValue = (int)(maxValue - 0.15 * abs(maxValue - minValue)); //adjusting values
-    minValue = (int)(minValue + 0.15 * abs(maxValue - minValue));
+    maxValue = (int)(maxValue - 0.1 * abs(maxValue - minValue)); //adjusting values
+    minValue = (int)(minValue + 0.1 * abs(maxValue - minValue));
 
     clearStdMemory();
     calcHistEqualization();
@@ -637,6 +560,7 @@ void calcHistEqualization() {
 // ===== determine the colour ====
 // ===============================
 /*
+   FALSE COLORS
   void getColour(int j)
   {
   if (j >= 0 && j < 30)
@@ -691,6 +615,7 @@ void calcHistEqualization() {
 */
 
 void getColour(int j) {
+  //GRAYSCALE
   if (j < 255 && j > 0) {
     R_colour = j;
     G_colour = j;
@@ -758,7 +683,7 @@ boolean isConnected()
 }
 
 
-void touchScreenHandle() {
+void touchScreenHandler() {
   p = ts.getPoint();
   if (p.z > MINPRESSURE && p.z < MAXPRESSURE) {
     // Scale from ~0->1000 to tft.width using the calibration
@@ -855,14 +780,11 @@ void temperatureReading() {
     MLX90640_CalculateTo(mlx90640Frame, &mlx90640, emissivity, tr, mlx90640To);
   }
 
-
   // determine T_min and T_max and eliminate error pixels
   // ====================================================
-
   //If pixels are showing errors (wrong temp, ...) simple interpolation to set them to a correct value
   //mlx90640To[1 * 32 + 21] = 0.5 * (mlx90640To[1 * 32 + 20] + mlx90640To[1 * 32 + 22]); // eliminate the error-pixels
   //mlx90640To[4 * 32 + 30] = 0.5 * (mlx90640To[4 * 32 + 29] + mlx90640To[4 * 32 + 31]); // eliminate the error-pixels
-
   T_min = mlx90640To[0];
   T_max = mlx90640To[0];
 
@@ -889,17 +811,12 @@ void temperatureReading() {
       mlx90640To[i] = mlx90640To[i + 1];
     }
   }
-
-
   // determine T_center
   // ==================
-
   T_center = mlx90640To[11 * 32 + 15];
 
   // drawing the picture
   // ===================
-
-
   for (i = (0 + croppingInteger) ; i < (24 - croppingInteger) ; i = i + resolutionInteger)
   {
     for (j = (0 + croppingInteger); j < (32 - croppingInteger); j = j + resolutionInteger)
@@ -915,10 +832,8 @@ void temperatureReading() {
     }
     Serial.println("");
   }
-
   temperatureDrawing(T_max, T_min, T_center);
 }
-
 
 void temperatureDrawing(float T_max, float T_min, float T_center) {
   tft.drawLine(217 - 15 * 7 + 3.5 - 5, 11 * 7 + 35 + 3.5, 217 - 15 * 7 + 3.5 + 5, 11 * 7 + 35 + 3.5, tft.color565(255, 255, 255));
@@ -951,14 +866,6 @@ void temperatureDrawing(float T_max, float T_min, float T_center) {
 void rawReading() {
 #ifdef _DEBUG_
   digitalWrite(4, HIGH);
-  /*
-    uint32_t reg_value = *((uint32_t*) 0x3FF53004 );
-    Serial.print(" reg value = ");
-    Serial.println(reg_value);
-      reg_value &= ~0x02;
-       ((uint32_t*) 0x3FF53004 )  = reg_value;
-      Serial.print(" reg value = ");
-      Serial.println(reg_value);*/
 #endif
   MLX90640_I2CRead(MLX90640_address, 0x8000, 1, &reg_value);
   reg_value = reg_value >> 3;
@@ -976,6 +883,7 @@ void rawReading() {
   MLX90640_I2CRead(MLX90640_address, 0x8000, 1, &reg_value);
   reg_value &= ~0x08; //clears bit 3 of 0x8000 to 0
   MLX90640_I2CWrite(MLX90640_address, 0x8000, reg_value); //resets status register to 0
+
 
   for (int i = (0 + croppingIntegerYM); i < (24 - croppingIntegerYP); i = i + resolutionInteger) {
     MLX90640_I2CRead(MLX90640_address,  0x0400 + 32 * i,  32, mydata); //read 32 places in memory
@@ -995,13 +903,13 @@ void rawReading() {
       }
       if (rawVisualisation) {
         if (rollingAverage) {
-          getColour(lut[(int) map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255)]);
+          getColour((int) map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
           if (stdValues[32 * i + x].StandardDeviation() > stdThreshold && stdColorMapping) {
             getColour(-250);
           }
         }
         else {
-          getColour(lut[(int)map(imageOutput, minValue, maxValue, 0, 255)]);
+          getColour((int)map(imageOutput, minValue, maxValue, 0, 255));
           if (stdValues[32 * i + x].StandardDeviation() > stdThreshold && stdColorMapping) {
             getColour(-250);
           }
@@ -1073,10 +981,10 @@ void rawReading() {
 
 void serialDoCommand() {
   /*Commands: 0 enables temp display
-              1 sets full resolution (legacy) enable std deviation color mapping
-              2 sets half resolution (legacy) or decrease std thresh
-              3 sets 1/3 resolution (legacy) or increase std thresh
-              4 sets comparison to ref frame
+              1 enable std deviation color mapping
+              2 decrease std thresh
+              3 increase std thresh
+              4 free
               5 sets an init frame
               6 switches from rolling average to raw viz
               7 increases cropping
@@ -1091,26 +999,7 @@ void serialDoCommand() {
     rawVisualisation = !rawVisualisation;
     frameCounter = 0;
     startingTime = millis();
-  }/*
-  else if (incomingByte == 49) {
-    resolutionInteger = 1;
-    frameCounter = 0;
-    startingTime = millis();
-    tft.fillRect(0, 35, 224, 203, tft.color565(0, 0, 0));
   }
-  else if (incomingByte == 50) {
-    resolutionInteger = 2;
-    frameCounter = 0;
-    startingTime = millis();
-    tft.fillRect(0, 35, 224, 203, tft.color565(0, 0, 0));
-  }
-  else if (incomingByte == 51) {
-    resolutionInteger = 3;
-    frameCounter = 0;
-    startingTime = millis();
-    tft.fillRect(0, 35, 224, 203, tft.color565(0, 0, 0));
-  }
-*/
   else if (incomingByte == '1') {
     stdColorMapping = !stdColorMapping;
   }
@@ -1121,11 +1010,10 @@ void serialDoCommand() {
     stdThreshold++;
   }
   else if (incomingByte == '4') {
-    setCompareToRefFrame();
+    //free
   }
   else if (incomingByte == '5') {
     setRefFrame();
-    flagGetVddAndTa = true;
   }
   else if (incomingByte == '6') {
     setRollingAverage();
