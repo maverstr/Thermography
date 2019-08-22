@@ -10,7 +10,7 @@
 #include "RunningStat.cpp" //computes the running std with Welford method (1962)
 
 #define _DEBUG_ //conditional compilation for debug
-#define _SERIAL_OUTPUT_
+//#define _SERIAL_OUTPUT_
 
 
 //Functions declaration
@@ -82,7 +82,7 @@ int incomingByte = 0;
 double frameCounter = 1;
 unsigned long startingTime;
 unsigned long currentTime;
-double rate;
+float rate;
 unsigned long timeDelta;
 
 uint16_t mydata[32];//array
@@ -90,14 +90,14 @@ uint16_t startvalue[32];//array
 uint16_t refFrame[768];
 uint16_t currentRefFrame[768];
 uint16_t calibrationFrame[768];
-float imageOutput = 0;
+int imageOutput = 0;
 int resolutionInteger = 1;
 uint16_t reg_value;
 
 float correctionValues[768];
 
-float maxValue = 150;
-float minValue = -50;
+int maxValue = 150;
+int minValue = -50;
 
 //Cropping and drawing
 int croppingInteger = 0; //The one used with buttons
@@ -157,6 +157,13 @@ int lut[768];
 int hist[256] = {0};
 int histCumSum[256] = {0};
 float pixelCounter = 0;
+
+
+//test integrate derivatives
+int integrateTable[768] = {0};
+int lastFrame[768] = {0};
+int derivative[768] = {0};
+bool doonce = true;
 
 // ***************************************
 // **************** SETUP ****************
@@ -511,15 +518,35 @@ void setRefFrame() {
 
 void setCalibration() {
   if (millis() > pressedTimeStamp + debounceDelay) {
-    //updates data
-    getVddAndTa(&vdd, &Ta, &mlx90640); //required too! why ??
-    for (int i = 0; i < 768; i++) {
-      correctionValues[i] = (mlx90640.offset[i] * (1 + mlx90640.kta[i] * (Ta - 25)) * (1 + mlx90640.kv[i] * (vdd - 3.3)));
-    }
     //64 frame calibration
     float value;
     maxValue = 10; //resets basic values
     minValue = 0;
+
+    if (doonce) {
+      Serial.println("in doonce");
+      for (int i = (0 + croppingIntegerYM); i < (24 - croppingIntegerYP); i = i + resolutionInteger) {
+        MLX90640_I2CRead(MLX90640_address,  0x0400 + 32 * i,  32, mydata); //read 32 places in memory
+        for (int x = (0 + croppingIntegerXM) ; x < (32 - croppingIntegerXP); x = x + resolutionInteger) {
+          if (flagCompareToRefFrame) {
+            value = currentRefFrame[32 * i + x] - refFrame[32 * i + x];
+          }
+          else {
+            value = currentRefFrame[32 * i + x];
+          }
+          if (value > 32767) {
+            value = value - 65536;
+          }
+          else {
+            value = value;
+          }
+          lastFrame[32 * i + x] = value;
+          doonce = false;
+        }
+      }
+    }
+
+
     for (int w = 0; w < 64; w++) {
       for (int i = (0 + croppingIntegerYM); i < (24 - croppingIntegerYP); i = i + resolutionInteger) {
         MLX90640_I2CRead(MLX90640_address,  0x0400 + 32 * i,  32, mydata); //read 32 places in memory
@@ -536,19 +563,23 @@ void setCalibration() {
           else {
             value = value;
           }
-          //Modification to correct the gain and stuff. values set at setup instead of getting vdd and Ta every frame cause it requires to get FrameData -> way too slow.
-          value = value - (correctionValues[32 * i + x]);
+          derivative[32 * i + x] = value - lastFrame[32 * i + x];
+          integrateTable[32 * i + x] += derivative[32 * i + x];
+          lastFrame[32 * i + x] = value;
+          value = integrateTable[32 * i + x];
           if (value > maxValue && (abs(value) < 1.3 * abs(maxValue) || abs(value) < abs(maxValue) + 20)) { //workaround to avoid > 32000 values... Why it happens with gain correction ? + avoid abberant value
             maxValue = value;
+            Serial.print("max value : "); Serial.println(maxValue);
           }
           else if (value < minValue && (abs(value) < 1.3 * abs(minValue) || abs(value) < abs(minValue) + 20)) {
             minValue = value;
+            Serial.print("min value : "); Serial.println(minValue);
           }
         }
       }
     }
-    maxValue = maxValue - 0.15 * abs(maxValue - minValue); //adjusting values
-    minValue = minValue + 0.15 * abs(maxValue - minValue);
+    maxValue = (int)(maxValue - 0.15 * abs(maxValue - minValue)); //adjusting values
+    minValue = (int)(minValue + 0.15 * abs(maxValue - minValue));
 
     clearStdMemory();
     calcHistEqualization();
@@ -568,19 +599,17 @@ void calcHist() {
   for (int i = (0 + croppingIntegerYM); i < (24 - croppingIntegerYP); i = i + resolutionInteger) {
     MLX90640_I2CRead(MLX90640_address,  0x0400 + 32 * i,  32, mydata); //read 32 places in memory
     for (int x = (0 + croppingIntegerXM) ; x < (32 - croppingIntegerXP); x = x + resolutionInteger) {
-      if (flagCompareToRefFrame) {
-        imageOutput = mydata[x] - refFrame[32 * i + x];
-      }
-      else {
-        imageOutput = mydata[x];
-      }
+      imageOutput = mydata[x];
       if (imageOutput > 32767)
       {
         imageOutput = imageOutput - 65536;
       }
-      imageOutput = imageOutput - (correctionValues[32 * i + x]);
-      imageOutput = (int)constrain(map(imageOutput, minValue, maxValue, 0, 255), 0 , 255);
-      hist[(int)imageOutput]++;
+      derivative[32 * i + x] = imageOutput - lastFrame[32 * i + x];
+      integrateTable[32 * i + x] += derivative[32 * i + x];
+      lastFrame[32 * i + x] = imageOutput;
+      imageOutput = integrateTable[32 * i + x];
+      imageOutput = constrain(map(imageOutput, minValue, maxValue, 0, 255), 0 , 255);
+      hist[imageOutput]++;
       pixelCounter++;
     }
   }
@@ -936,7 +965,7 @@ void rawReading() {
   reg_value &= 1;
   while (!reg_value) {
 #ifdef _DEBUG_
-    Serial.println("waiting for a new frame");
+    //Serial.println("waiting for a new frame");
     digitalWrite(4, LOW);
     digitalWrite(4, HIGH);
 #endif
@@ -951,18 +980,15 @@ void rawReading() {
   for (int i = (0 + croppingIntegerYM); i < (24 - croppingIntegerYP); i = i + resolutionInteger) {
     MLX90640_I2CRead(MLX90640_address,  0x0400 + 32 * i,  32, mydata); //read 32 places in memory
     for (int x = (0 + croppingIntegerXM) ; x < (32 - croppingIntegerXP); x = x + resolutionInteger) {
-      if (flagCompareToRefFrame) {
-        imageOutput = mydata[x] - refFrame[32 * i + x];
-      }
-      else {
-        imageOutput = mydata[x];
-      }
+      imageOutput = mydata[x];
       if (imageOutput > 32767)
       {
         imageOutput = imageOutput - 65536;
       }
-      //Modification to correct the gain and stuff. values set at setup instead of getting vdd and Ta every frame cause it requires to get FrameData -> way too slow.
-      imageOutput = imageOutput - (correctionValues[32 * i + x]);
+      derivative[32 * i + x] = imageOutput - lastFrame[32 * i + x];
+      integrateTable[32 * i + x] += derivative[32 * i + x];
+      lastFrame[32 * i + x] = imageOutput;
+      imageOutput = integrateTable[32 * i + x];
       if (rollingAverage) {
         rollingFrameMinus[rollingCounter][32 * i + x] = imageOutput;
         rollingFrame[32 * i + x] += imageOutput;
@@ -975,19 +1001,13 @@ void rawReading() {
           }
         }
         else {
-          //getColour(map(imageOutput, minValue, maxValue, 0, 255));
           getColour(lut[(int)map(imageOutput, minValue, maxValue, 0, 255)]);
           if (stdValues[32 * i + x].StandardDeviation() > stdThreshold && stdColorMapping) {
             getColour(-250);
           }
           //getColour(map(stdValues[32*i+x].StandardDeviation(), 0, 150, 0 , 255)); //std map
         }
-        if (flagDrawingMode) {
-          tft.fillRect(x * 10, i * 10, 10, 10, tft.color565(R_colour, G_colour, B_colour)); //draws on the fullscreen
-        }
-        else {
-          tft.fillRect(217 - x * 7, 35 + i * 7, 7, 7, tft.color565(R_colour, G_colour, B_colour)); //draws on a sub-part of the screen
-        }
+        tft.fillRect(x * 10, i * 10, 10, 10, tft.color565(R_colour, G_colour, B_colour)); //draws on the fullscreen
       }
       if (rollingAverage) {
         if (stdValues[32 * i + x].StandardDeviation() > stdThreshold) {
@@ -1019,12 +1039,9 @@ void rawReading() {
 #ifdef _DEBUG_
   currentTime = millis();
   timeDelta = (currentTime - startingTime) / 1000;
-  rate = frameCounter / (double)timeDelta;
-  Serial.print("------------------------frame counter = ");
-  Serial.print(frameCounter);
-  Serial.print("rate = ");
-  Serial.print(rate);
-  Serial.println("----------------------------------");
+  rate = frameCounter / timeDelta;
+  Serial.print("------------------------frame counter = "); Serial.print(frameCounter); Serial.print(" ");
+  Serial.print("fps = "); Serial.print(rate); Serial.println("----------------------------------");
   Serial.print("max values : "); Serial.print(maxValue); Serial.print(" "); Serial.println(minValue);
   frameCounter++;
 #endif
