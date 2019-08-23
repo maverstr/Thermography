@@ -9,8 +9,8 @@
 #include <driver/dac.h> //Used to drive the DAC and analog out of the ESP32
 #include "RunningStat.cpp" //computes the running std with Welford method (1962)
 
-//#define _DEBUG_ //conditional compilation for debug
-//#define _SERIAL_OUTPUT_
+#define _DEBUG_ //conditional compilation for debug
+#define _SERIAL_OUTPUT_
 
 
 //Functions declaration
@@ -480,7 +480,7 @@ void setCalibration() {
       for (int i = (0 + croppingIntegerYM); i < (24 - croppingIntegerYP); i = i + resolutionInteger) {
         MLX90640_I2CRead(MLX90640_address,  0x0400 + 32 * i,  32, mydata); //read 32 places in memory
         for (int x = (0 + croppingIntegerXM) ; x < (32 - croppingIntegerXP); x = x + resolutionInteger) {
-          value = mydata[32 * i + x];
+          value = mydata[x];
           if (value > 32767) {
             value = value - 65536;
           }
@@ -491,10 +491,10 @@ void setCalibration() {
           integrateTable[32 * i + x] += derivative[32 * i + x];
           lastFrame[32 * i + x] = value;
           value = integrateTable[32 * i + x];
-          if (value > maxValue && (abs(value) < 1.3 * abs(maxValue) || abs(value) < abs(maxValue) + 20)) {//avoid abberant value
+          if (value > maxValue && (abs(value) < 1.3 * abs(maxValue) || abs(value) < abs(maxValue) + 10)) {//avoid abberant value
             maxValue = value;
           }
-          else if (value < minValue && (abs(value) < 1.3 * abs(minValue) || abs(value) < abs(minValue) + 20)) {
+          else if (value < minValue && (abs(value) < 1.3 * abs(minValue) || abs(value) < abs(minValue) + 10)) {
             minValue = value;
           }
         }
@@ -899,13 +899,13 @@ void rawReading() {
       }
       if (rawVisualisation) {
         if (rollingAverage) {
-          getColour(lut[map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255)]);
+          getColour(map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
           if (stdValues[32 * i + x].StandardDeviation() > stdThreshold && stdColorMapping) {
             getColour(-250);
           }
         }
         else {
-          getColour(lut[map(imageOutput, minValue, maxValue, 0, 255)]);
+          getColour(map(imageOutput, minValue, maxValue, 0, 255));
           if (stdValues[32 * i + x].StandardDeviation() > stdThreshold && stdColorMapping) {
             getColour(-250);
           }
@@ -915,22 +915,22 @@ void rawReading() {
       }
       if (rollingAverage) {
         if (stdValues[32 * i + x].StandardDeviation() > stdThreshold) {
-          rawDataSum += lut[map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255)];
+          rawDataSum += map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255);
           averageCounter++;
         }
         stdValues[32 * i + x].Push(map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
       }
       else {
         if (stdValues[32 * i + x].StandardDeviation() > stdThreshold) {
-          rawDataSum += lut[map(imageOutput, minValue, maxValue, 0, 255)];
+          rawDataSum += map(imageOutput, minValue, maxValue, 0, 255);
           averageCounter++;
         }
         stdValues[32 * i + x].Push(map(imageOutput, minValue, maxValue, 0, 255));
       }
 #ifdef _SERIAL_OUTPUT_
-      //Serial.print(imageOutput);
-      imageOutput = constrain(imageOutput, minValue, maxValue);
-      Serial.print(lut[(int)map(imageOutput, minValue, maxValue, 0, 255)]);
+      Serial.print(imageOutput);
+      //imageOutput = constrain(imageOutput, minValue, maxValue);
+      //Serial.print(lut[(int)map(imageOutput, minValue, maxValue, 0, 255)]);
       Serial.print(F(" "));
 #endif
     }
