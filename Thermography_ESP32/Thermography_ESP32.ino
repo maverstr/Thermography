@@ -10,7 +10,7 @@
 #include "RunningStat.cpp" //computes the running std with Welford method (1962)
 
 #define _DEBUG_ //conditional compilation for debug
-#define _SERIAL_OUTPUT_
+//#define _SERIAL_OUTPUT_
 
 
 //Functions declaration
@@ -78,10 +78,10 @@ bool tempVisualisation = false;
 bool rawVisualisation = true;
 int incomingByte = 0;
 double frameCounter = 1;
-unsigned long startingTime;
-unsigned long currentTime;
+float startingTime;
+float currentTime;
 float rate;
-unsigned long timeDelta;
+float timeDelta;
 
 uint16_t mydata[32];
 int imageOutput = 0;
@@ -323,7 +323,7 @@ void getVddAndTa(float *vdd, float *Ta, paramsMLX90640 *mlx90640) {
 // ===============================
 
 void rollingCounterIncrease(int *counter) {
-  if (*counter < 3) {
+  if (*counter < 1) {
     (*counter)++;
   }
   else {
@@ -899,7 +899,7 @@ void rawReading() {
       }
       if (rawVisualisation) {
         if (rollingAverage) {
-          getColour(map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
+          getColour(map(rollingFrame[32 * i + x] >> 1, minValue, maxValue, 0, 255));
           if (stdValues[32 * i + x].StandardDeviation() > stdThreshold && stdColorMapping) {
             getColour(-250);
           }
@@ -915,10 +915,10 @@ void rawReading() {
       }
       if (rollingAverage) {
         if (stdValues[32 * i + x].StandardDeviation() > stdThreshold) {
-          rawDataSum += map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255);
+          rawDataSum += map(rollingFrame[32 * i + x] >> 1, minValue, maxValue, 0, 255);
           averageCounter++;
         }
-        stdValues[32 * i + x].Push(map(rollingFrame[32 * i + x] >> 2, minValue, maxValue, 0, 255));
+        stdValues[32 * i + x].Push(map(rollingFrame[32 * i + x] >> 1, minValue, maxValue, 0, 255));
       }
       else {
         if (stdValues[32 * i + x].StandardDeviation() > stdThreshold) {
