@@ -4,7 +4,7 @@
 #include "SPI.h"
 #include "MLX90640_I2C_Driver.h"
 #include "TouchScreen.h"
-#include "TFT_eSPI.h" //fast library. SPI Speed can be changed in User_setup.h. currently set at 80MHz which could cause corrupt
+#include <TFT_eSPI.h>//fast library. SPI Speed can be changed in User_setup.h. currently set at 80MHz which could cause corrupt
 // Change to 40Mhz if it happens
 #include <driver/dac.h> //Used to drive the DAC and analog out of the ESP32
 #include "RunningStat.cpp" //computes the running std with Welford method (1962)
