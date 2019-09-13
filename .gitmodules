@@ -1,0 +1,3 @@
+[submodule "UserGuide-Thermography"]
+	path = UserGuide-Thermography
+	url = https://github.com/maverstr/UserGuide-Thermography
