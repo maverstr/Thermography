@@ -9,8 +9,8 @@
 #include <driver/dac.h> //Used to drive the DAC and analog out of the ESP32
 #include "RunningStat.cpp" //computes the running std with Welford method (1962)
 
-#define _DEBUG_ //conditional compilation for debug
-//#define _SERIAL_OUTPUT_
+//#define _DEBUG_ //conditional compilation for debug
+#define _SERIAL_OUTPUT_
 
 
 //Functions declaration
@@ -475,7 +475,7 @@ void setCalibration() {
         }
       }
     }
-    
+
     for (int w = 0; w < 64; w++) {
       for (int i = (0 + croppingIntegerYM); i < (24 - croppingIntegerYP); i = i + resolutionInteger) {
         MLX90640_I2CRead(MLX90640_address,  0x0400 + 32 * i,  32, mydata); //read 32 places in memory
@@ -885,6 +885,10 @@ void rawReading() {
     MLX90640_I2CRead(MLX90640_address,  0x0400 + 32 * i,  32, mydata); //read 32 places in memory
     for (int x = (0 + croppingIntegerXM) ; x < (32 - croppingIntegerXP); x = x + resolutionInteger) {
       imageOutput = mydata[x];
+#ifdef _SERIAL_OUTPUT_
+      Serial.print(imageOutput);
+      Serial.print(F(" "));
+#endif
       if (imageOutput > 32767)
       {
         imageOutput = imageOutput - 65536;
@@ -927,12 +931,13 @@ void rawReading() {
         }
         stdValues[32 * i + x].Push(map(imageOutput, minValue, maxValue, 0, 255));
       }
-#ifdef _SERIAL_OUTPUT_
-      Serial.print(imageOutput);
-      //imageOutput = constrain(imageOutput, minValue, maxValue);
-      //Serial.print(lut[(int)map(imageOutput, minValue, maxValue, 0, 255)]);
-      Serial.print(F(" "));
-#endif
+      /*
+        #ifdef _SERIAL_OUTPUT_
+        Serial.print(imageOutput);
+        //imageOutput = constrain(imageOutput, minValue, maxValue);
+        //Serial.print(lut[(int)map(imageOutput, minValue, maxValue, 0, 255)]);
+        Serial.print(F(" "));
+        #endif*/
     }
 #ifdef _SERIAL_OUTPUT_
     Serial.println();
