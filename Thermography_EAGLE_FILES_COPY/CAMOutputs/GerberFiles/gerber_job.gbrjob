@@ -1,0 +1,24 @@
+{
+    "Header": {
+        "Comment": "All values are metric (mm)",
+        "CreationDate": "2019-07-29T08:21:30Z",
+        "GenerationSoftware": {
+            "Application": "EAGLE",
+            "Vendor": "Autodesk",
+            "Version": "9.4.2"
+        },
+        "Part": "Single"
+    },
+    "Overall": {
+        "BoardThickness": 1.671119,
+        "LayerNumber": 2,
+        "Name": {
+            "ProjectId": "wiring_thermography"
+        },
+        "Owner": "Verstraeten Maxime <v.maxime@gmail.com>",
+        "Size": {
+            "X": 71.1,
+            "Y": 64.44
+        }
+    }
+}
