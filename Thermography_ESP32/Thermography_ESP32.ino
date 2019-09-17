@@ -8,10 +8,12 @@
 // Change to 40Mhz if it happens
 #include <driver/dac.h> //Used to drive the DAC and analog out of the ESP32
 #include "RunningStat.cpp" //computes the running std with Welford method (1962)
+#include <EEPROM.h> //to save the settings
+#define EEPROM_SIZE 7 //rawVisualisation, croppingIntegerXM/YM/YP/YM, stdThreshold, stdColorMapping
+
 
 //#define _DEBUG_ //conditional compilation for debug
 #define _SERIAL_OUTPUT_
-
 
 //Functions declaration
 void IRAM_ATTR setCalibrationFlag(); //loaded in quick ram
@@ -164,6 +166,9 @@ void setup()
   flagDrawingMode = digitalRead(drawingModePin);
   dac_output_enable(DAC_CHANNEL_1); //enable analog output
   pressedTimeStamp = millis();
+  EEPROM.begin(EEPROM_SIZE);
+  EEPROMSetupRead();//eeprom reading stored values
+
   Serial.begin(500000);
   Wire.begin();
   Wire.setClock(400000); //Increase I2C clock speed to 400kHz
@@ -221,13 +226,16 @@ void setup()
 
   tft.begin();
   tft.setRotation(1);
-  drawUI();
+  if (!flagDrawingMode) {
+    drawUI();
+  }
   getVddAndTa(&vdd, &Ta, &mlx90640); //required too! why ??
   for (int i = 0; i < 768; i++) {
     correctionValues[i] = (mlx90640.offset[i] * (1 + mlx90640.kta[i] * (Ta - 25)) * (1 + mlx90640.kv[i] * (vdd - 3.3)));
   }
   setRefFrame(); //Gets a starting init frame
   setCalibration();
+  tft.fillRect(0, 35, 224, 203, tft.color565(0, 0, 0)); //blackens the screen to reset it
   startingTime = millis();
 }
 
@@ -420,6 +428,7 @@ void setCroppingInteger(int xp, int xm, int yp, int ym) { //overloaded functions
 
 }
 
+
 // ===============================
 // =====   buttons actions    ====
 // ===============================
@@ -460,9 +469,9 @@ void setCalibration() {
     minValue = 0;
 
     if (doonce) {
-      for (int i = (0 + croppingIntegerYM); i < (24 - croppingIntegerYP); i = i + resolutionInteger) {
+      for (int i = 0; i < 24; i = i + 1) {
         MLX90640_I2CRead(MLX90640_address,  0x0400 + 32 * i,  32, mydata); //read 32 places in memory
-        for (int x = (0 + croppingIntegerXM) ; x < (32 - croppingIntegerXP); x = x + resolutionInteger) {
+        for (int x = 0 ; x < 32; x = x + 1) {
           value = mydata[x];
           if (value > 32767) {
             value = value - 65536;
@@ -552,6 +561,34 @@ void calcHistEqualization() {
   for (int i = 0; i < 256; i++) {
     lut[i] = (int)(histCumSum[i] * (255.00 / pixelCounter));
   }
+}
+
+
+
+// ===============================
+// =====       EEPROM         ====
+// ===============================
+
+void EEPROMSetupRead() {
+  rawVisualisation = EEPROM.read(0);
+  croppingIntegerXM = EEPROM.read(1);
+  croppingIntegerYM = EEPROM.read(2);
+  croppingIntegerXP = EEPROM.read(3);
+  croppingIntegerYM = EEPROM.read(4);
+  stdThreshold = EEPROM.read(5);
+  stdColorMapping = EEPROM.read(6);
+}
+
+void EEPROMCommitValues() {
+  EEPROM.write(0, rawVisualisation);
+  EEPROM.write(1, croppingIntegerXM);
+  EEPROM.write(2, croppingIntegerYM);
+  EEPROM.write(3, croppingIntegerXP);
+  EEPROM.write(4, croppingIntegerYM);
+  EEPROM.write(5, stdThreshold);
+  EEPROM.write(6, stdColorMapping);
+
+  EEPROM.commit();
 }
 
 
@@ -979,11 +1016,11 @@ void rawReading() {
 }
 
 void serialDoCommand() {
-  /*Commands: 0 enables temp display
+  /*Commands: 0 commit actual values to EEPROM to be stored
               1 enable std deviation color mapping
               2 decrease std thresh
               3 increase std thresh
-              4 free
+              4 enables temp display
               5 sets an init frame
               6 switches from rolling average to raw viz
               7 increases cropping
@@ -992,7 +1029,7 @@ void serialDoCommand() {
   */
   incomingByte = Serial.read();
   if (incomingByte == '0') {
-    setTempVisualisation();
+    EEPROMCommitValues();
   }
   else if (incomingByte == '9') {
     rawVisualisation = !rawVisualisation;
@@ -1009,7 +1046,7 @@ void serialDoCommand() {
     stdThreshold++;
   }
   else if (incomingByte == '4') {
-    //free
+    setTempVisualisation();
   }
   else if (incomingByte == '5') {
     setRefFrame();
