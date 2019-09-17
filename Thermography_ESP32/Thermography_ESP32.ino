@@ -235,7 +235,13 @@ void setup()
   }
   setRefFrame(); //Gets a starting init frame
   setCalibration();
-  tft.fillRect(0, 35, 224, 203, tft.color565(0, 0, 0)); //blackens the screen to reset it
+  tft.fillRect(0, 0, 320, 240, tft.color565(0, 0, 0)); //blackens the screen to reset it
+  if (!rawVisualisation) {
+    tft.setTextColor(ILI9341_WHITE, tft.color565(0, 0, 0));
+    tft.setCursor(0, 60);
+    tft.setTextSize(6);
+    tft.print("No visualisation mode");
+  }
   startingTime = millis();
 }
 
@@ -574,7 +580,7 @@ void EEPROMSetupRead() {
   croppingIntegerXM = EEPROM.read(1);
   croppingIntegerYM = EEPROM.read(2);
   croppingIntegerXP = EEPROM.read(3);
-  croppingIntegerYM = EEPROM.read(4);
+  croppingIntegerYP = EEPROM.read(4);
   stdThreshold = EEPROM.read(5);
   stdColorMapping = EEPROM.read(6);
 }
@@ -584,7 +590,7 @@ void EEPROMCommitValues() {
   EEPROM.write(1, croppingIntegerXM);
   EEPROM.write(2, croppingIntegerYM);
   EEPROM.write(3, croppingIntegerXP);
-  EEPROM.write(4, croppingIntegerYM);
+  EEPROM.write(4, croppingIntegerYP);
   EEPROM.write(5, stdThreshold);
   EEPROM.write(6, stdColorMapping);
 
@@ -1033,8 +1039,16 @@ void serialDoCommand() {
   }
   else if (incomingByte == '9') {
     rawVisualisation = !rawVisualisation;
+    tft.fillRect(0, 0, 320, 240, tft.color565(0, 0, 0)); //blackens the screen to reset it
+    if (!rawVisualisation) {
+      tft.setTextColor(ILI9341_WHITE, tft.color565(0, 0, 0));
+      tft.setCursor(0, 60);
+      tft.setTextSize(6);
+      tft.print("No visualisation mode");
+    }
     frameCounter = 0;
     startingTime = millis();
+
   }
   else if (incomingByte == '1') {
     stdColorMapping = !stdColorMapping;
