@@ -2,55 +2,73 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation
 import time
+import threading
 
 
-fname = "raw.txt"
+fname = "raw11.txt"
 frames = []
+frames2 = []
+column = 0
+row = 0
+lineNumber = 1
+previousLineNumber = 0
+
+totalFrames = []
+previousShape = (0,0)
+anim = []
+sumVal = []
+
+
 with open(fname) as file:
     values = []
-    for line in file:
+    for lineNumber,line in enumerate(file):
         line = line.rstrip()
         if line == '':
-            frame = np.array(values, np.int16).reshape((24, 32))
+            row = lineNumber - previousLineNumber
+            frame = np.array(values, np.int16).reshape((row, column))
+            if(frame.shape != previousShape):
+                if(doonce):
+                    totalFrames.append(frames)
+                    frames = []
+                else:
+                    doonce = True
             print(frame.shape)
             frames.append(frame)
             values=[]
+            previousLineNumber = lineNumber +1
+            previousShape = frame.shape
             continue
         v = line.split(" ")
+        column = len(v);
         values.extend(v)
-        
-
-
-frames = np.array(frames)
-print(frames.shape)
-
-print(frames[0])
-
-min = frames.min()
-max = frames.max()
-
-print("min : %d"%min)
-print("max : %d"%max)
-
-dev = np.std(frames, axis=0)
-print(dev)
-
-diff = np.diff(frames, axis=0)
-print(diff.shape)
-
-sum = np.cumsum(diff, axis=0)  
-print(sum.shape) 
-   
-fig = plt.figure()
-im = plt.imshow(sum[0], cmap='hot', interpolation='nearest')
-
-
-print(sum[-1])
-
-def animate(i):
-    im.set_data(sum[i])
-    return im
     
-anim = animation.FuncAnimation(fig, animate, frames=sum.shape[0],
-                               interval=50, repeat=False)
-plt.show()
+totalFrames.append(frames)
+
+fig = plt.figure()
+
+def plotGraph(i):
+    def animate(i):
+        im.set_data(sumVal[i])
+        return 
+    
+    frames = np.array(totalFrames[i])
+    print("in")
+    print(i)
+    diff = np.diff(frames, axis=0)
+    sumVal = np.cumsum(diff, axis=0)
+    im = plt.imshow(sumVal[0], cmap='hot', interpolation='none', animated=True)
+    anim.append(animation.FuncAnimation(fig, animate, frames=sumVal.shape[0],
+                           interval=1, repeat=False))
+
+for i in range(len(totalFrames)):
+    while (not plt.waitforbuttonpress()):
+    
+        p = threading.Thread(target = plotGraph, args = (i,) )
+        p.start()
+        plt.show(block = False) 
+        p.join()
+        break
+
+while (not plt.waitforbuttonpress()):
+    plt.close('all')
+    break
