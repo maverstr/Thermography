@@ -98,18 +98,20 @@ def plotGraph(i):
     #ax2.plot(analogOutput)
     
     anim.append(animation.FuncAnimation(fig, animate, frames=sumVal.shape[0],
-                          interval=36, repeat=False))
+                          interval=50, repeat=False))
     
 for i in range(len(totalFrames)):
-    while (not plt.waitforbuttonpress()):
-        ax2.clear()
-        p = threading.Thread(target = plotGraph, args = (i,) )
-        p.start()
-        plt.show(block = False) 
-        p.join()
+    while (True):
+        if(plt.waitforbuttonpress()):
+            ax2.clear()
+            p = threading.Thread(target = plotGraph, args = (i,) )
+            p.start()
+            plt.show(block = False) 
+            p.join()
+            break
+
+
+while(True):
+    if(plt.waitforbuttonpress()):
+        plt.close('all')
         break
-
-while (not plt.waitforbuttonpress()):
-    plt.close('all')
-    break
-
