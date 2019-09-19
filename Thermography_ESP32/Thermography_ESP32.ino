@@ -12,7 +12,7 @@
 #define EEPROM_SIZE 7 //rawVisualisation, croppingIntegerXM/YM/YP/YM, stdThreshold, stdColorMapping
 
 
-//#define _DEBUG_ //conditional compilation for debug
+#define _DEBUG_ //conditional compilation for debug
 #define _SERIAL_OUTPUT_
 
 //Functions declaration

@@ -43,7 +43,7 @@ void draw()
       for (int i = 0; i < 24; i++) {
         for (int x = 0; x < 32; x++) {
           try {          
-            fill(array[32*i +x] +50);
+            fill((array[32*i +x] -65420)*2);
             rect(i*20, x*20, 20, 20);
           }
           catch(Exception e) {
