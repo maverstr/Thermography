@@ -116,8 +116,8 @@ ax1 = fig.add_subplot(2,2,1)  #  2 x 1 grid, first plot (top)
 ax2 = fig.add_subplot(2,1,2)  #  2 x 1 grid, second plot (bottom)
 ax3 = fig.add_subplot(2,2,2)
 ax1.set_title("Data:")
-ax2.set_title("Mean of ROI")
-ax3.set_title("ROI Visualization")
+ax2.set_title("Mean of ROI:")
+ax3.set_title("ROI Visualization:")
 msk = ax3.imshow(ROIArray,vmax=1, interpolation='nearest')
 
 analogSignalYData = []
